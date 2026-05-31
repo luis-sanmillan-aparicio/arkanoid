@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -700,6 +699,18 @@ let animId=null;
 function loop(){
   animId=requestAnimationFrame(loop);
   if(!game) return;
+  // Keyboard movement — smooth, frame-based
+  if(game.state==='playing'){
+    const spd=7;
+    if(keysHeld['ArrowLeft']||keysHeld['a']||keysHeld['A']){
+      game.paddle.x=Math.max(0, game.paddle.x-spd);
+      game.balls.forEach(b=>{if(b.stuck) b.x=game.paddle.x+game.paddle.w/2;});
+    }
+    if(keysHeld['ArrowRight']||keysHeld['d']||keysHeld['D']){
+      game.paddle.x=Math.min(game.W-game.paddle.w, game.paddle.x+spd);
+      game.balls.forEach(b=>{if(b.stuck) b.x=game.paddle.x+game.paddle.w/2;});
+    }
+  }
   game.update();
   game.draw();
   if(game.state==='over'){
@@ -750,15 +761,13 @@ canvas.addEventListener('touchmove',e=>{
 canvas.addEventListener('mousemove',e=>{if(game) game.onPointerMove(e.clientX);});
 canvas.addEventListener('click',e=>{if(game) game.onTap();});
 
-// Keyboard
+// Keyboard — track held keys, move in game loop for smooth response
+const keysHeld={};
 document.addEventListener('keydown',e=>{
-  if(!game||game.state!=='playing') return;
-  const spd=20;
-  if(e.key==='ArrowLeft') game.paddle.x=Math.max(0,game.paddle.x-spd);
-  if(e.key==='ArrowRight') game.paddle.x=Math.min(game.W-game.paddle.w,game.paddle.x+spd);
-  if(e.key===' '){e.preventDefault();game.onTap();}
-  game.balls.forEach(b=>{if(b.stuck) b.x=game.paddle.x+game.paddle.w/2;});
+  keysHeld[e.key]=true;
+  if(e.key===' '){e.preventDefault();if(game&&game.state==='playing') game.onTap();}
 });
+document.addEventListener('keyup',e=>{ keysHeld[e.key]=false; });
 
 // Init
 resize();
