@@ -28,11 +28,15 @@
   }
 
   #wrapper{
-    width:100%;height:100vh;
+    width:100%;
+    height: 100vh;
+    height: 100dvh;
     display:flex;flex-direction:column;
     align-items:center;justify-content:flex-start;
-    padding-top:env(safe-area-inset-top);
-    padding-bottom:env(safe-area-inset-bottom);
+    padding-top:max(env(safe-area-inset-top), 8px);
+    padding-bottom:max(env(safe-area-inset-bottom), 16px);
+    padding-left:env(safe-area-inset-left);
+    padding-right:env(safe-area-inset-right);
   }
 
   #hud{
@@ -344,7 +348,7 @@ class Game{
   initPaddle(){
     const pw=Math.min(90, this.W*0.28);
     this.paddle={
-      x:this.W/2-pw/2, y:this.H-this.H*0.07,
+      x:this.W/2-pw/2, y:this.H-this.H*0.1,
       w:pw, h:10, baseW:pw,
       wideTimer:0,
     };
