@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -10,6 +11,19 @@
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  
+  /* PREVENCIÓN DE SELECCIÓN EN iOS (CSS obligatorio) */
+  #wrapper, #wrapper * {
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+  
+  canvas {
+    touch-action: none;          /* Evita scroll/zoom táctil */
+    -webkit-tap-highlight-color: transparent;
+  }
+
   :root{
     --neon-cyan:#00f5ff;
     --neon-pink:#ff006e;
@@ -747,27 +761,42 @@ document.getElementById('btn-next').addEventListener('click',()=>{
   startGame(l,s,game?game.lives:1);
 });
 
-// Touch / mouse
-let lastTouchX=null;
-canvas.addEventListener('touchstart',e=>{
+// PREVENCIÓN DE SELECCIÓN EN iOS (JavaScript crítico)
+// Aseguramos que los eventos pointer tengan preventDefault y passive:false
+canvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();   // clave para iOS
+}, { passive: false });
+
+canvas.addEventListener('pointermove', (e) => {
+  e.preventDefault();   // clave para iOS
+  if(game && game.state === 'playing') {
+    game.onPointerMove(e.clientX);
+  }
+}, { passive: false });
+
+// Eventos táctiles originales ya tienen preventDefault y passive:false
+// Los mantenemos (touchstart, touchmove) ya que funcionan correctamente.
+// Además, el evento 'click' y 'mousemove' se conservan sin cambios.
+canvas.addEventListener('touchstart', e => {
   e.preventDefault();
-  lastTouchX=e.touches[0].clientX;
   if(game) game.onTap();
-},{passive:false});
-canvas.addEventListener('touchmove',e=>{
+}, {passive: false});
+
+canvas.addEventListener('touchmove', e => {
   e.preventDefault();
   if(game) game.onPointerMove(e.touches[0].clientX);
-},{passive:false});
-canvas.addEventListener('mousemove',e=>{if(game) game.onPointerMove(e.clientX);});
-canvas.addEventListener('click',e=>{if(game) game.onTap();});
+}, {passive: false});
+
+canvas.addEventListener('mousemove', e => { if(game) game.onPointerMove(e.clientX); });
+canvas.addEventListener('click', e => { if(game) game.onTap(); });
 
 // Keyboard — track held keys, move in game loop for smooth response
 const keysHeld={};
-document.addEventListener('keydown',e=>{
+document.addEventListener('keydown', e => {
   keysHeld[e.key]=true;
   if(e.key===' '){e.preventDefault();if(game&&game.state==='playing') game.onTap();}
 });
-document.addEventListener('keyup',e=>{ keysHeld[e.key]=false; });
+document.addEventListener('keyup', e => { keysHeld[e.key]=false; });
 
 // Init
 resize();
