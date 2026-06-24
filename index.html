@@ -426,7 +426,7 @@ class Game{
       this.lasers.push(new Laser(this.paddle.x+this.paddle.w-6, this.paddle.y));
       this.laserShots--;
       if(this.laserShots<=0){ this.laserActive=false; this.laserShots=0; }
-    } else if(!released && !this.laserActive && this.missileQueue>0 && !this.missileActive){
+    } else if(!released && this.missileQueue>0 && !this.missileActive){
       this.missileActive=true;
       this.missileQueue--;
       const BALL_R=7;
