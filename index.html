@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -12,7 +11,6 @@
 
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
   
-  /* PREVENCIÓN DE SELECCIÓN EN iOS (CSS obligatorio) */
   #wrapper, #wrapper * {
     user-select: none;
     -webkit-user-select: none;
@@ -20,7 +18,7 @@
   }
   
   canvas {
-    touch-action: none;          /* Evita scroll/zoom táctil */
+    touch-action: none;
     -webkit-tap-highlight-color: transparent;
   }
 
@@ -80,7 +78,6 @@
     image-rendering:pixelated;
   }
 
-  /* Overlays */
   .overlay{
     position:absolute;inset:0;
     display:flex;flex-direction:column;
@@ -170,6 +167,8 @@
         <div class="pu-item"><div class="pu-dot" style="background:#00f5ff"></div>⚡Laser x20</div>
         <div class="pu-item"><div class="pu-dot" style="background:#00f5ff"></div>Fuego</div>
         <div class="pu-item"><div class="pu-dot" style="background:#ff4500"></div>💥Implacable</div>
+        <div class="pu-item"><div class="pu-dot" style="background:#ff2200"></div>🚀Misil</div>
+        <div class="pu-item"><div class="pu-dot" style="background:#ff2200"></div>🛡Barrera</div>
         <div class="pu-item"><div class="pu-dot" style="background:#888"></div>💀Trampa</div>
       </div>
       <button class="big-btn" id="btn-start">JUGAR</button>
@@ -196,9 +195,7 @@ const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
 const wrap = document.getElementById('canvas-wrap');
 
-// ── Resize ──
 function resize(){
-  // Use window.innerHeight for PWA standalone — more reliable than CSS dvh on iOS
   const hudH = document.getElementById('hud').getBoundingClientRect().height;
   const totalH = window.innerHeight;
   const wrapH = totalH - hudH;
@@ -211,7 +208,6 @@ function resize(){
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', ()=>setTimeout(resize, 200));
 
-// ── Colors ──
 const BRICK_COLORS = [
   ['#ff006e','#ff5599'],
   ['#ff6b00','#ff9955'],
@@ -229,10 +225,11 @@ const PU_TYPES = [
   {id:'laser',       color:'#00f5ff', label:'⚡'},
   {id:'unstoppable', color:'#ff4500', label:'💥'},
   {id:'unstoppable', color:'#ff4500', label:'💥'},
+  {id:'missile',     color:'#ff2200', label:'🚀'},
+  {id:'barrier',     color:'#ff2200', label:'🛡'},
   {id:'skull',       color:'#888888', label:'💀'},
 ];
 
-// ── Particles ──
 class Particle{
   constructor(x,y,color){
     this.x=x; this.y=y; this.color=color;
@@ -251,7 +248,6 @@ class Particle{
   }
 }
 
-// ── Laser ──
 class Laser{
   constructor(x,y){this.x=x;this.y=y;this.vy=-12;this.w=3;this.h=16;}
   update(){this.y+=this.vy;}
@@ -263,7 +259,6 @@ class Laser{
   }
 }
 
-// ── Powerup ──
 class Powerup{
   constructor(x,y,type){
     this.x=x;this.y=y;this.type=type;
@@ -285,7 +280,6 @@ class Powerup{
   }
 }
 
-// ── Ball ──
 class Ball{
   constructor(x,y,vx,vy,r=7){
     this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.r=r;
@@ -301,7 +295,6 @@ class Ball{
     if(this.y>H+20) this.alive=false;
   }
   draw(ctx){
-    // trail
     const trailColor = this.unstoppable ? '#ff4500' : '#00f5ff';
     this.trail.forEach((p,i)=>{
       const a=(i/this.trail.length)*0.4;
@@ -311,7 +304,6 @@ class Ball{
       ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
     });
     ctx.globalAlpha=1;
-    // glow
     ctx.shadowBlur=this.unstoppable?28:20;
     ctx.shadowColor=trailColor;
     ctx.fillStyle=this.unstoppable?'#ffaa44':'#fff';
@@ -320,12 +312,11 @@ class Ball{
   }
 }
 
-// ── Game ──
 class Game{
   constructor(){
     this.W=canvas.width; this.H=canvas.height;
     this.level=1; this.score=0; this.lives=1;
-    this.state='playing'; // playing | lost | won
+    this.state='playing';
     this.particles=[];
     this.powerups=[];
     this.lasers=[];
@@ -335,15 +326,22 @@ class Game{
     this.unstoppableTimer=0;
     this.skullSpawnedThisLevel=false;
     this.lifeSpawnedThisLevel=false;
+    // Misil
+    this.missileQueue=0;
+    this.missileActive=false; // misil en vuelo
+    this.missileObj=null;
+    this.missileParticles=[];
+    this.explosionObj=null;
+    // Barrera
+    this.barrierActive=false;
+    this.barrierTimer=0;
     this.initLevel();
   }
 
   onResize(){
     this.W=canvas.width; this.H=canvas.height;
     this.initPaddle();
-    // reposition bricks
     this.placeBricks();
-    // reposition ball if stuck on paddle
     this.balls.forEach(b=>{
       if(b.stuck){b.x=this.paddle.x+this.paddle.w/2; b.y=this.paddle.y-b.r-1;}
     });
@@ -360,9 +358,15 @@ class Game{
     this.unstoppableTimer=0;
     this.skullSpawnedThisLevel=false;
     this.lifeSpawnedThisLevel=false;
+    this.missileQueue=0;
+    this.missileActive=false;
+    this.missileObj=null;
+    this.missileParticles=[];
+    this.explosionObj=null;
+    this.barrierActive=false;
+    this.barrierTimer=0;
     this.initPaddle();
     this.placeBricks();
-    // start ball stuck on paddle
     const speed = 4+this.level*0.4;
     const b=new Ball(this.paddle.x+this.paddle.w/2, this.paddle.y-8, 0, -speed);
     b.stuck=true; b.baseSpeed=speed;
@@ -399,17 +403,14 @@ class Game{
     }
   }
 
-  // Touch / mouse
   onPointerMove(clientX){
     const rect=canvas.getBoundingClientRect();
     const x=(clientX-rect.left)*(canvas.width/rect.width);
     this.paddle.x=Math.max(0,Math.min(this.W-this.paddle.w, x-this.paddle.w/2));
-    // move stuck ball
     this.balls.forEach(b=>{if(b.stuck) b.x=this.paddle.x+this.paddle.w/2;});
   }
 
   onTap(){
-    // release stuck balls
     let released=false;
     this.balls.forEach(b=>{
       if(b.stuck){
@@ -421,11 +422,19 @@ class Game{
       }
     });
     if(!released && this.laserActive){
-      // fire lasers, consume one shot
       this.lasers.push(new Laser(this.paddle.x+6, this.paddle.y));
       this.lasers.push(new Laser(this.paddle.x+this.paddle.w-6, this.paddle.y));
       this.laserShots--;
       if(this.laserShots<=0){ this.laserActive=false; this.laserShots=0; }
+    } else if(!released && !this.laserActive && this.missileQueue>0 && !this.missileActive){
+      this.missileActive=true;
+      this.missileQueue--;
+      const BALL_R=7;
+      this.missileObj={
+        x:this.paddle.x+this.paddle.w/2,
+        y:this.paddle.y-BALL_R*2,
+        vy:-10, alive:true, trail:[], smokeT:0,
+      };
     }
   }
 
@@ -434,13 +443,11 @@ class Game{
   }
 
   dropPowerup(br){
-    // Build allowed pool — skull once per level, life only every 3 levels
     let pool = PU_TYPES.filter(p => {
       if(p.id==='skull' && this.skullSpawnedThisLevel) return false;
       if(p.id==='life' && (this.level%3!==0 || this.lifeSpawnedThisLevel)) return false;
       return true;
     });
-    // Halve regular powerups (not life/skull) by randomly removing half of them
     pool = pool.filter(p => {
       if(p.id==='life' || p.id==='skull') return true;
       return Math.random()<0.25;
@@ -495,42 +502,161 @@ class Game{
         this.unstoppable=true; this.unstoppableTimer=600;
         this.balls.forEach(b=>b.unstoppable=true);
         this.showMsg('¡IMPLACABLE!','#ff4500'); break;
+      case 'missile':
+        this.missileQueue++;
+        this.showMsg('🚀 MISIL DESTRUCTOR','#ff2200'); break;
+      case 'barrier':
+        this.barrierActive=true;
+        this.barrierTimer=600;
+        this.showMsg('🛡 BARRERA PROTECTORA','#ff2200'); break;
     }
+  }
+
+  doMissileExplosion(ex,ey){
+    const BW=(this.W-12*2-4*(8-1))/8;
+    const m=this.missileObj;
+    m.alive=false;
+    this.missileActive=false;
+    this.explosionObj={x:ex,y:ey,t:0,duration:90,radius:BW*1.0};
+    for(let i=0;i<80;i++){
+      const a=(i/80)*Math.PI*2;
+      const spd=2+Math.random()*8;
+      const cols=['#ffffff','#ffffa0','#ffcc00','#ff8800','#ff4400','#cc1100'];
+      const col=cols[Math.floor(Math.random()*cols.length)];
+      this.missileParticles.push({
+        x:ex,y:ey,
+        vx:Math.cos(a)*spd*(0.7+Math.random()*0.6),
+        vy:Math.sin(a)*spd*(0.7+Math.random()*0.6),
+        r:2+Math.random()*4, life:1,
+        decay:1/(30+Math.random()*25),
+        smoke:false, color:col,
+      });
+    }
+    for(let i=0;i<50;i++){
+      const a=Math.random()*Math.PI*2;
+      const spd=10+Math.random()*14;
+      this.missileParticles.push({
+        x:ex,y:ey,
+        vx:Math.cos(a)*spd, vy:Math.sin(a)*spd,
+        r:1+Math.random()*1.2, life:1,
+        decay:1/(12+Math.random()*10),
+        smoke:false, color:'#ffee88',
+      });
+    }
+    this.showMsg('💥 BOOM!','#ff4400');
   }
 
   update(){
     if(this.state!=='playing') return;
     const {W,H,paddle}=this;
 
-    // Paddle wide timer
     if(paddle.wideTimer>0){paddle.wideTimer--;if(paddle.wideTimer===0) paddle.w=paddle.baseW;}
     if(this.unstoppableTimer>0){this.unstoppableTimer--;if(this.unstoppableTimer===0){this.unstoppable=false;this.balls.forEach(b=>b.unstoppable=false);}}
 
-    // Balls
+    // Barrera
+    if(this.barrierActive){
+      this.barrierTimer--;
+      if(this.barrierTimer<=0){this.barrierActive=false;}
+      // Rebote de bolas en la barrera
+      this.balls.forEach(b=>{
+        if(b.stuck) return;
+        const by=paddle.y+paddle.h/2;
+        if(b.vy>0 && b.y+b.r>=by && b.y-b.r<=by+4){
+          b.y=by-b.r;
+          b.vy=-Math.abs(b.vy);
+        }
+      });
+    }
+
+    // Misil
+    if(this.missileObj && this.missileObj.alive){
+      const m=this.missileObj;
+      const BALL_R=7, MW=BALL_R*2;
+      m.trail.push({x:m.x,y:m.y});
+      if(m.trail.length>20) m.trail.shift();
+      m.y+=m.vy;
+      m.smokeT++;
+      // Partículas de propulsión
+      if(m.smokeT%2===0){
+        this.missileParticles.push({
+          x:m.x+(Math.random()*4-2), y:m.y+MW,
+          vx:Math.random()*0.6-0.3, vy:-0.4+Math.random()*0.2,
+          r:2+Math.random()*2, life:1, decay:0.04, smoke:true,
+        });
+      }
+      if(m.smokeT%3===0){
+        const a=Math.PI/2+(Math.random()*0.5-0.25);
+        this.missileParticles.push({
+          x:m.x, y:m.y+MW,
+          vx:Math.cos(a)*(1.5+Math.random()*2.5),
+          vy:Math.sin(a)*(1.5+Math.random()*2.5),
+          r:1.5, life:1, decay:0.12, smoke:false, color:'#ffcc44',
+        });
+      }
+      // Colisión con ladrillo
+      let hit=false;
+      for(let br of this.bricks){
+        if(!br.alive) continue;
+        if(m.x+MW/2>br.x && m.x-MW/2<br.x+br.w &&
+           m.y-MW*2<br.y+br.h && m.y>br.y-MW){
+          hit=true;
+          this.doMissileExplosion(m.x, br.y+br.h/2);
+          break;
+        }
+      }
+      if(!hit && m.y<-40){ m.alive=false; this.missileActive=false; }
+      // Partículas del misil
+      this.missileParticles.forEach(p=>{
+        p.x+=p.vx; p.y+=p.vy; p.life-=p.decay; p.r*=0.97;
+        if(!p.smoke) p.vy+=0.15;
+      });
+      this.missileParticles=this.missileParticles.filter(p=>p.life>0);
+    } else if(this.missileObj && !this.missileObj.alive){
+      // Partículas de explosión siguen vivas tras el misil muerto
+      this.missileParticles.forEach(p=>{
+        p.x+=p.vx; p.y+=p.vy; p.life-=p.decay; p.r*=0.97;
+        if(!p.smoke) p.vy+=0.15;
+      });
+      this.missileParticles=this.missileParticles.filter(p=>p.life>0);
+      if(this.missileParticles.length===0) this.missileObj=null;
+    }
+
+    // Explosión del misil
+    if(this.explosionObj){
+      const ex=this.explosionObj;
+      ex.t++;
+      const currentR=ex.radius*Math.min(1,ex.t/(ex.duration*0.6));
+      this.bricks.forEach(br=>{
+        if(!br.alive) return;
+        const bcx=br.x+br.w/2, bcy=br.y+br.h/2;
+        if(Math.hypot(bcx-ex.x,bcy-ex.y)<=currentR+br.w*0.4){
+          br.alive=false;
+          this.score+=10*this.level; this.updateHUD();
+          this.spawnParticles(bcx,bcy,br.color[0],10);
+        }
+      });
+      if(ex.t>ex.duration) this.explosionObj=null;
+    }
+
     this.balls.forEach(b=>{
       if(b.stuck) return;
       b.update(W,H);
-      // paddle collision
       if(b.vy>0 && b.y+b.r>=paddle.y && b.y-b.r<=paddle.y+paddle.h
         && b.x>=paddle.x && b.x<=paddle.x+paddle.w){
         b.y=paddle.y-b.r;
-        // angle based on hit position
         const hit=(b.x-(paddle.x+paddle.w/2))/(paddle.w/2);
         const angle=-Math.PI/2+hit*0.8;
         const speed=Math.hypot(b.vx,b.vy);
         b.vx=Math.cos(angle)*speed;
         b.vy=Math.sin(angle)*speed;
-        // speed cap
         const maxS=10+this.level*0.3;
         const s=Math.hypot(b.vx,b.vy);
         if(s>maxS){b.vx=b.vx/s*maxS;b.vy=b.vy/s*maxS;}
       }
-      // brick collision
       this.bricks.forEach(br=>{
         if(!br.alive) return;
         if(b.x+b.r>br.x && b.x-b.r<br.x+br.w && b.y+b.r>br.y && b.y-b.r<br.y+br.h){
           if(b.unstoppable){
-            // destroy instantly, no bounce, pierce through
             br.hp=0; br.alive=false;
             this.score+=10*this.level;
             this.updateHUD();
@@ -547,7 +673,6 @@ class Game{
             } else {
               this.spawnParticles(br.x+br.w/2,br.y+br.h/2,br.color[0],4);
             }
-            // bounce only when not unstoppable
             const overlapL=b.x+b.r-br.x, overlapR=br.x+br.w-(b.x-b.r);
             const overlapT=b.y+b.r-br.y, overlapB=br.y+br.h-(b.y-b.r);
             const minH=Math.min(overlapL,overlapR), minV=Math.min(overlapT,overlapB);
@@ -557,13 +682,11 @@ class Game{
       });
     });
 
-    // Remove dead balls
     this.balls=this.balls.filter(b=>b.alive||b.stuck);
     if(this.balls.length===0){
       this.lives--;
       this.updateHUD();
       if(this.lives<=0){this.state='over';return;}
-      // respawn
       const speed=4+this.level*0.4;
       const b=new Ball(paddle.x+paddle.w/2,paddle.y-8,0,-speed);
       b.stuck=true;b.baseSpeed=speed;
@@ -571,7 +694,6 @@ class Game{
       this.showMsg('PERDISTE UNA VIDA','#ff006e');
     }
 
-    // Powerups
     this.powerups.forEach(pu=>{
       pu.update();
       if(pu.y+pu.h/2>paddle.y && pu.y-pu.h/2<paddle.y+paddle.h
@@ -584,7 +706,6 @@ class Game{
     });
     this.powerups=this.powerups.filter(p=>p.alive);
 
-    // Lasers
     this.lasers.forEach(l=>{
       l.update();
       this.bricks.forEach(br=>{
@@ -600,42 +721,34 @@ class Game{
     });
     this.lasers=this.lasers.filter(l=>l.alive!==false);
 
-    // Particles
     this.particles.forEach(p=>p.update());
     this.particles=this.particles.filter(p=>p.life>0);
 
-    // Check win
     if(this.bricks.every(b=>!b.alive)){this.state='won';}
   }
 
   draw(){
     const {W,H,paddle}=this;
-    // Background
     ctx.fillStyle=`#050510`;
     ctx.fillRect(0,0,W,H);
 
-    // Grid
     ctx.strokeStyle='rgba(0,245,255,0.04)';ctx.lineWidth=1;
     const gs=30;
     for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
     for(let y=0;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 
-    // Bricks
     this.bricks.forEach(br=>{
       if(!br.alive) return;
       const alpha=0.4+0.6*(br.hp/br.maxHp);
       ctx.globalAlpha=alpha;
-      // fill
       const grad=ctx.createLinearGradient(br.x,br.y,br.x,br.y+br.h);
       grad.addColorStop(0,br.color[1]);grad.addColorStop(1,br.color[0]);
       ctx.fillStyle=grad;
       ctx.beginPath();ctx.roundRect(br.x+1,br.y+1,br.w-2,br.h-2,3);ctx.fill();
-      // glow border
       ctx.globalAlpha=alpha*0.8;
       ctx.strokeStyle=br.color[1];ctx.lineWidth=1;
       ctx.shadowBlur=8;ctx.shadowColor=br.color[0];
       ctx.stroke();ctx.shadowBlur=0;
-      // hp cracks
       if(br.hp<br.maxHp){
         ctx.globalAlpha=0.5;
         ctx.strokeStyle='rgba(0,0,0,0.6)';ctx.lineWidth=1.5;
@@ -649,39 +762,163 @@ class Game{
       ctx.globalAlpha=1;
     });
 
-    // Powerups
     this.powerups.forEach(p=>p.draw(ctx));
-
-    // Lasers
     this.lasers.forEach(l=>l.draw(ctx));
 
-    // Paddle
+    // Barrera protectora
+    if(this.barrierActive){
+      const by=paddle.y+paddle.h/2;
+      const alpha=this.barrierTimer<60?(this.barrierTimer/60):1;
+      ctx.save();
+      ctx.globalAlpha=0.7*alpha;
+      ctx.strokeStyle='#ff2200';
+      ctx.lineWidth=2;
+      ctx.shadowBlur=10; ctx.shadowColor='#ff2200';
+      ctx.beginPath(); ctx.moveTo(0,by); ctx.lineTo(W,by); ctx.stroke();
+      ctx.restore();
+      ctx.globalAlpha=1;
+    }
+
+    // Partículas del misil (humo debajo, fuego encima)
+    if(this.missileParticles.length){
+      this.missileParticles.filter(p=>p.smoke).forEach(p=>{
+        ctx.globalAlpha=p.life*0.22;
+        ctx.fillStyle='#aaaaaa';
+        ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();
+      });
+      this.missileParticles.filter(p=>!p.smoke).forEach(p=>{
+        ctx.globalAlpha=p.life*0.9;
+        ctx.shadowBlur=p.r*2; ctx.shadowColor=p.color||'#ffcc44';
+        ctx.fillStyle=p.color||'#ffcc44';
+        ctx.beginPath();ctx.arc(p.x,p.y,Math.max(0.3,p.r),0,Math.PI*2);ctx.fill();
+        ctx.shadowBlur=0;
+      });
+      ctx.globalAlpha=1;
+    }
+
+    // Explosión del misil
+    if(this.explosionObj){
+      const ex=this.explosionObj;
+      const prog=Math.min(1,ex.t/ex.duration);
+      const cx=ex.x, cy=ex.y;
+      // Resplandor
+      if(prog<0.75){
+        const gr=ex.radius*1.5*(1-prog*0.65);
+        const g0=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
+        g0.addColorStop(0,`rgba(255,140,0,${0.18*(1-prog)})`);
+        g0.addColorStop(1,'rgba(255,30,0,0)');
+        ctx.fillStyle=g0; ctx.beginPath();ctx.arc(cx,cy,gr,0,Math.PI*2);ctx.fill();
+      }
+      // Bola de fuego
+      const coreR=Math.max(0,ex.radius*0.6*(1-Math.pow(prog,1.15)));
+      if(coreR>1){
+        const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,coreR);
+        g1.addColorStop(0,'rgba(255,255,200,0.98)');
+        g1.addColorStop(0.3,'rgba(255,180,30,0.9)');
+        g1.addColorStop(0.65,'rgba(255,80,0,0.7)');
+        g1.addColorStop(1,'rgba(80,10,0,0)');
+        ctx.globalAlpha=Math.max(0,1-prog*1.3);
+        ctx.fillStyle=g1; ctx.beginPath();ctx.arc(cx,cy,coreR,0,Math.PI*2);ctx.fill();
+        if(prog<0.12){
+          ctx.globalAlpha=(0.12-prog)/0.12*0.95;
+          ctx.fillStyle='#fff'; ctx.beginPath();ctx.arc(cx,cy,coreR*0.4,0,Math.PI*2);ctx.fill();
+        }
+      }
+      // Onda de choque
+      const shockR=ex.radius*Math.min(1,ex.t/(ex.duration*0.55));
+      const shockA=prog<0.55?0.55:Math.max(0,(1-prog)*1.3);
+      if(shockA>0.02){
+        ctx.globalAlpha=shockA*0.4;
+        ctx.strokeStyle='#ffaa44'; ctx.lineWidth=6;
+        ctx.shadowBlur=20; ctx.shadowColor='#ff6600';
+        ctx.beginPath();ctx.arc(cx,cy,shockR,0,Math.PI*2);ctx.stroke();
+        ctx.shadowBlur=0;
+        ctx.globalAlpha=shockA*0.2;
+        ctx.strokeStyle='#fff'; ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(cx,cy,shockR*0.82,0,Math.PI*2);ctx.stroke();
+      }
+      ctx.globalAlpha=1;
+    }
+
+    // Misil en vuelo
+    if(this.missileObj && this.missileObj.alive){
+      const m=this.missileObj;
+      const BALL_R=7, MW=BALL_R*2, mH=MW*3.8;
+      // Estela
+      m.trail.forEach((pt,i)=>{
+        const t=i/m.trail.length;
+        ctx.globalAlpha=t*0.5;
+        const rr=MW*0.38*t;
+        const g=ctx.createRadialGradient(pt.x,pt.y,0,pt.x,pt.y,rr+0.5);
+        g.addColorStop(0,'#ffcc44'); g.addColorStop(1,'rgba(255,80,0,0)');
+        ctx.fillStyle=g; ctx.beginPath();ctx.arc(pt.x,pt.y,rr+0.5,0,Math.PI*2);ctx.fill();
+      });
+      ctx.globalAlpha=1;
+      ctx.save(); ctx.translate(m.x,m.y);
+      ctx.shadowBlur=18; ctx.shadowColor='#ff4400';
+      // Cuerpo
+      const bg=ctx.createLinearGradient(-MW/2,0,MW/2,0);
+      bg.addColorStop(0,'#555');bg.addColorStop(0.3,'#ddd');bg.addColorStop(0.65,'#bbb');bg.addColorStop(1,'#444');
+      ctx.fillStyle=bg;
+      ctx.beginPath();ctx.roundRect(-MW/2,-mH*0.55,MW,mH*0.55,2);ctx.fill();
+      // Ojiva
+      ctx.fillStyle='#cc2200';
+      ctx.beginPath();ctx.moveTo(0,-mH*0.55-mH*0.32);ctx.lineTo(-MW/2,-mH*0.55);ctx.lineTo(MW/2,-mH*0.55);ctx.closePath();ctx.fill();
+      // Franja
+      ctx.fillStyle='rgba(220,0,0,0.65)';ctx.fillRect(-MW/2,-mH*0.33,MW,mH*0.075);
+      // Aletas
+      ctx.fillStyle='#777';
+      ctx.beginPath();ctx.moveTo(-MW/2,0);ctx.lineTo(-MW*1.15,mH*0.14);ctx.lineTo(-MW*1.05,mH*0.02);ctx.lineTo(-MW/2,-mH*0.2);ctx.closePath();ctx.fill();
+      ctx.beginPath();ctx.moveTo(MW/2,0);ctx.lineTo(MW*1.15,mH*0.14);ctx.lineTo(MW*1.05,mH*0.02);ctx.lineTo(MW/2,-mH*0.2);ctx.closePath();ctx.fill();
+      // Tobera
+      ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.ellipse(0,0,MW*0.42,MW*0.25,0,0,Math.PI*2);ctx.fill();
+      // Llama
+      const flk=0.72+0.28*Math.sin(Date.now()*0.06);
+      const fg=ctx.createRadialGradient(0,mH*0.1*flk,0,0,mH*0.15*flk,MW*0.65*flk);
+      fg.addColorStop(0,'rgba(255,255,190,1)');fg.addColorStop(0.35,'rgba(255,130,0,0.9)');fg.addColorStop(1,'rgba(200,0,0,0)');
+      ctx.globalAlpha=0.95; ctx.fillStyle=fg;
+      ctx.shadowColor='#ff6600'; ctx.shadowBlur=20;
+      ctx.beginPath();ctx.ellipse(0,mH*0.1*flk,MW*0.32,mH*0.24*flk,0,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0; ctx.restore(); ctx.globalAlpha=1;
+    }
+
     const pg=ctx.createLinearGradient(paddle.x,paddle.y,paddle.x,paddle.y+paddle.h);
     pg.addColorStop(0,'#88ffff');pg.addColorStop(1,'#00b8cc');
     ctx.shadowBlur=16;ctx.shadowColor='#00f5ff';
     ctx.fillStyle=pg;
     ctx.beginPath();ctx.roundRect(paddle.x,paddle.y,paddle.w,paddle.h,paddle.h/2);ctx.fill();
-    // laser cannons
     if(this.laserActive){
       ctx.fillStyle='#00f5ff';
       ctx.shadowColor='#00f5ff';ctx.shadowBlur=20;
       ctx.beginPath();ctx.arc(paddle.x+5,paddle.y+2,4,0,Math.PI*2);ctx.fill();
       ctx.beginPath();ctx.arc(paddle.x+paddle.w-5,paddle.y+2,4,0,Math.PI*2);ctx.fill();
       ctx.shadowBlur=0;
-      // shot counter
       ctx.fillStyle='#00f5ff';ctx.font='bold 11px Orbitron,monospace';
       ctx.textAlign='center';ctx.textBaseline='bottom';
       ctx.fillText('⚡'+this.laserShots, paddle.x+paddle.w/2, paddle.y-4);
     }
+    // Pico central del misil
+    if(this.missileQueue>0 || this.missileActive){
+      const pikX=paddle.x+paddle.w/2;
+      ctx.shadowColor='#88ffff'; ctx.shadowBlur=14;
+      ctx.fillStyle='#88ffff';
+      ctx.beginPath();
+      ctx.moveTo(pikX, paddle.y-9);
+      ctx.lineTo(pikX-5, paddle.y);
+      ctx.lineTo(pikX+5, paddle.y);
+      ctx.closePath(); ctx.fill();
+      ctx.shadowBlur=0;
+      if(this.missileQueue>1){
+        ctx.fillStyle='#88ffff'; ctx.font='bold 9px Orbitron,monospace';
+        ctx.textAlign='center'; ctx.textBaseline='bottom';
+        ctx.fillText('×'+this.missileQueue, pikX, paddle.y-11);
+      }
+    }
     ctx.shadowBlur=0;
 
-    // Balls
     this.balls.forEach(b=>b.draw(ctx));
-
-    // Particles
     this.particles.forEach(p=>p.draw(ctx));
 
-    // Stuck hint
     if(this.balls.some(b=>b.stuck)){
       ctx.globalAlpha=0.5+0.5*Math.sin(Date.now()*0.005);
       ctx.fillStyle='#00f5ff';ctx.font='bold 11px Orbitron,monospace';
@@ -706,16 +943,14 @@ class Game{
   }
 }
 
-// ── Main loop ──
 let game=null;
 let animId=null;
 
 function loop(){
   animId=requestAnimationFrame(loop);
   if(!game) return;
-  // Keyboard movement — smooth, frame-based
+  const spd=7;
   if(game.state==='playing'){
-    const spd=7;
     if(keysHeld['ArrowLeft']||keysHeld['a']||keysHeld['A']){
       game.paddle.x=Math.max(0, game.paddle.x-spd);
       game.balls.forEach(b=>{if(b.stuck) b.x=game.paddle.x+game.paddle.w/2;});
@@ -752,7 +987,6 @@ function startGame(level=1, score=0, lives=3){
   loop();
 }
 
-// Buttons
 document.getElementById('btn-start').addEventListener('click',()=>startGame(1,0,1));
 document.getElementById('btn-restart').addEventListener('click',()=>startGame(1,0,1));
 document.getElementById('btn-next').addEventListener('click',()=>{
@@ -761,36 +995,16 @@ document.getElementById('btn-next').addEventListener('click',()=>{
   startGame(l,s,game?game.lives:1);
 });
 
-// PREVENCIÓN DE SELECCIÓN EN iOS (JavaScript crítico)
-// Aseguramos que los eventos pointer tengan preventDefault y passive:false
-canvas.addEventListener('pointerdown', (e) => {
-  e.preventDefault();   // clave para iOS
-}, { passive: false });
-
+canvas.addEventListener('pointerdown', (e) => { e.preventDefault(); }, { passive: false });
 canvas.addEventListener('pointermove', (e) => {
-  e.preventDefault();   // clave para iOS
-  if(game && game.state === 'playing') {
-    game.onPointerMove(e.clientX);
-  }
+  e.preventDefault();
+  if(game && game.state === 'playing') { game.onPointerMove(e.clientX); }
 }, { passive: false });
-
-// Eventos táctiles originales ya tienen preventDefault y passive:false
-// Los mantenemos (touchstart, touchmove) ya que funcionan correctamente.
-// Además, el evento 'click' y 'mousemove' se conservan sin cambios.
-canvas.addEventListener('touchstart', e => {
-  e.preventDefault();
-  if(game) game.onTap();
-}, {passive: false});
-
-canvas.addEventListener('touchmove', e => {
-  e.preventDefault();
-  if(game) game.onPointerMove(e.touches[0].clientX);
-}, {passive: false});
-
+canvas.addEventListener('touchstart', e => { e.preventDefault(); if(game) game.onTap(); }, {passive: false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); if(game) game.onPointerMove(e.touches[0].clientX); }, {passive: false});
 canvas.addEventListener('mousemove', e => { if(game) game.onPointerMove(e.clientX); });
 canvas.addEventListener('click', e => { if(game) game.onTap(); });
 
-// Keyboard — track held keys, move in game loop for smooth response
 const keysHeld={};
 document.addEventListener('keydown', e => {
   keysHeld[e.key]=true;
@@ -798,7 +1012,6 @@ document.addEventListener('keydown', e => {
 });
 document.addEventListener('keyup', e => { keysHeld[e.key]=false; });
 
-// Init
 resize();
 </script>
 </body>
