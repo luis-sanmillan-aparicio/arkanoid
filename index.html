@@ -929,10 +929,10 @@ class Game{
   }
 
   updateHUD(){
-    document.getElementById('score-val').textContent=this.score;
-    document.getElementById('level-val').textContent=this.level;
-    const hearts=['❤','❤❤','❤❤❤','❤❤❤❤','❤❤❤❤❤'];
-    document.getElementById('lives-val').textContent=hearts[Math.max(0,this.lives-1)]||'';
+    document.getElementById('score-val').textContent = this.score;
+    document.getElementById('level-val').textContent = this.level;
+    const livesCount = Math.min(this.lives, 10);
+    document.getElementById('lives-val').textContent = '❤'.repeat(livesCount);
   }
 
   showMsg(text,color='#00f5ff'){
