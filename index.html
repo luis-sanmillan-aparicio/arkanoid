@@ -908,7 +908,7 @@ class Game{
       ctx.lineTo(pikX+5, paddle.y);
       ctx.closePath(); ctx.fill();
       ctx.shadowBlur=0;
-      if(this.missileQueue>1){
+      if(this.missileQueue>0){
         ctx.fillStyle='#88ffff'; ctx.font='bold 9px Orbitron,monospace';
         ctx.textAlign='center'; ctx.textBaseline='bottom';
         ctx.fillText('×'+this.missileQueue, pikX, paddle.y-10);
