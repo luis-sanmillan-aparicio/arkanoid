@@ -517,7 +517,7 @@ class Game{
     const m=this.missileObj;
     m.alive=false;
     this.missileActive=false;
-    this.explosionObj={x:ex,y:ey,t:0,duration:90,radius:BW*1.0};
+    this.explosionObj={x:ex,y:ey,t:0,duration:90,radius:BW*1.7};
     for(let i=0;i<80;i++){
       const a=(i/80)*Math.PI*2;
       const spd=2+Math.random()*8;
