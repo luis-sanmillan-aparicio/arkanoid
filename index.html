@@ -462,7 +462,7 @@ class Game{
   applyPowerup(type){
     const p=this.paddle;
     switch(type){
-      case 'life': this.lives=Math.min(5,this.lives+1); this.updateHUD(); this.showMsg('+VIDA ❤','#06ffa5'); break;
+      case 'life': this.lives=Math.min(10,this.lives+1); this.updateHUD(); this.showMsg('+VIDA ❤','#06ffa5'); break;
       case 'skull':
         this.lives--;
         this.updateHUD();
