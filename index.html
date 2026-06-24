@@ -895,7 +895,7 @@ class Game{
       ctx.shadowBlur=0;
       ctx.fillStyle='#00f5ff';ctx.font='bold 11px Orbitron,monospace';
       ctx.textAlign='center';ctx.textBaseline='bottom';
-      ctx.fillText('⚡'+this.laserShots, paddle.x+paddle.w/2, paddle.y-4);
+      ctx.fillText('⚡'+this.laserShots, paddle.x+paddle.w/2, paddle.y-20);
     }
     // Pico central del misil
     if(this.missileQueue>0 || this.missileActive){
