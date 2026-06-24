@@ -768,7 +768,7 @@ class Game{
     // Barrera protectora
     if(this.barrierActive){
       const by=paddle.y+paddle.h/2;
-      const alpha=this.barrierTimer<180?(this.barrierTimer/180):1;
+      const alpha=this.barrierTimer<360?(this.barrierTimer/360):1;
       ctx.save();
       ctx.globalAlpha=0.7*alpha;
       ctx.strokeStyle='#ff2200';
