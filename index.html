@@ -421,12 +421,9 @@ class Game{
         released=true;
       }
     });
-    if(!released && this.laserActive){
-      this.lasers.push(new Laser(this.paddle.x+6, this.paddle.y));
-      this.lasers.push(new Laser(this.paddle.x+this.paddle.w-6, this.paddle.y));
-      this.laserShots--;
-      if(this.laserShots<=0){ this.laserActive=false; this.laserShots=0; }
-    } else if(!released && this.missileQueue>0 && !this.missileActive){
+
+
+    if(!released && this.missileQueue>0 && !this.missileActive){
       this.missileActive=true;
       this.missileQueue--;
       const BALL_R=7;
@@ -435,6 +432,17 @@ class Game{
         y:this.paddle.y-BALL_R*2,
         vy:-10, alive:true, trail:[], smokeT:0,
       };
+    } else if(!released && this.laserActive){
+      this.lasers.push(new Laser(this.paddle.x+6, this.paddle.y));
+      this.lasers.push(new Laser(this.paddle.x+this.paddle.w-6, this.paddle.y));
+      this.laserShots--;
+      if(this.laserShots<=0){ this.laserActive=false; this.laserShots=0; }
+    }
+
+
+
+    
+    
     }
   }
 
