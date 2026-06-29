@@ -232,9 +232,8 @@ const PU_TYPES = [
   {id:'fire',        color:'#ff6600', label:'🔥'},
 ];
 
-// ─── FIRE FLAME RENDERER (mini, del HTML Fuego) ────────────────────────────
-// Dibuja una llama tipo vela-gota bezier sobre un ladrillo
-function drawMiniFlameShape(ctx, cx, cy, w, h, lean) {
+// ─── FIRE FLAME RENDERER (del HTML Fuego, versión vistosa) ─────────────────
+function drawFlameShape(ctx, cx, cy, w, h, lean) {
   const tipX = cx + lean * w;
   const tipY = cy - h;
   const bL   = cx - w;
@@ -257,67 +256,65 @@ function drawMiniFlameShape(ctx, cx, cy, w, h, lean) {
 }
 
 function drawBrickFire(ctx, br, now) {
-  // Progreso de extinción: 0=recién prendido, 1=a punto de morir
-  const burnFrac = 1 - (br.burnTimer / 300);
-  // La llama va mengua conforme se acaba el tiempo (últimos 20% se achica)
-  const flameFactor = burnFrac > 0.8 ? (1 - (burnFrac - 0.8) / 0.2) : 1.0;
+  // 0=recién prendido, 1=a punto de morir
+  const burnFrac = 1 - (br.burnTimer / BURN_TOTAL);
+  // Las llamas menguan solo en el último 15%
+  const flameFactor = burnFrac > 0.85 ? (1 - (burnFrac - 0.85) / 0.15) : 1.0;
 
-  const cx = br.x + br.w / 2;
-  const baseY = br.y;  // las llamas salen del borde superior del ladrillo
+  const cx  = br.x + br.w / 2;
+  const baseY = br.y + 2;
 
-  // Número de llamas según ancho del ladrillo
-  const numFlames = Math.max(2, Math.floor(br.w / 14));
-  const step = br.w / numFlames;
+  // Resplandor de calor amplio
+  const glowR = br.w * 1.1 * flameFactor;
+  if(glowR > 1){
+    const glow = ctx.createRadialGradient(cx, br.y + br.h*0.4, 0, cx, br.y + br.h*0.4, glowR);
+    glow.addColorStop(0, `rgba(255,100,0,${0.28 * flameFactor})`);
+    glow.addColorStop(0.5, `rgba(180,40,0,${0.12 * flameFactor})`);
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.ellipse(cx, br.y + br.h*0.4, glowR, glowR*0.55, 0, 0, Math.PI*2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+  }
 
-  for (let i = 0; i < numFlames; i++) {
-    const fx = br.x + step * 0.5 + step * i;
-    const seed = br.burnSeed + i * 7.3;
-
-    // Altura mini: ~8-14 px para un ladrillo de 18px
-    const h = (7 + Math.sin(now * 0.009 + seed) * 3) * flameFactor;
-    const w = (3 + Math.sin(now * 0.007 + seed + 1) * 1.2) * flameFactor;
-    const lean = Math.sin(now * 0.008 + seed + 2) * 0.4;
+  // 12 llamas: alternando grandes y pequeñas
+  const NUM_FLAMES = 12;
+  for(let i = 0; i < NUM_FLAMES; i++){
+    const seed = br.burnSeed + i * 9.17;
+    const fx = br.x + (br.w * 0.05) + (br.w * 0.9) * ((Math.sin(seed)*0.5+0.5));
+    const isLarge = (i % 2 === 0);
+    const baseH = isLarge ? br.w * 0.85 : br.w * 0.45;
+    const baseW = isLarge ? br.w * 0.18 : br.w * 0.10;
+    const h = (baseH + Math.sin(now * 0.009 + seed) * baseH * 0.28) * flameFactor;
+    const w = (baseW + Math.sin(now * 0.007 + seed + 2) * baseW * 0.3) * flameFactor;
+    const lean = Math.sin(now * 0.006 + seed + 1) * 0.45;
 
     ctx.save();
-    drawMiniFlameShape(ctx, fx, baseY, w, h, lean);
-
+    drawFlameShape(ctx, fx, baseY, w, h, lean);
     const grad = ctx.createLinearGradient(fx, baseY - h, fx, baseY);
-    const a = 0.92 * flameFactor;
-    grad.addColorStop(0,    `rgba(255,255,200,${a})`);
-    grad.addColorStop(0.25, `rgba(255,220,40,${a})`);
-    grad.addColorStop(0.55, `rgba(255,100,10,${a * 0.9})`);
-    grad.addColorStop(0.85, `rgba(200,25,5,${a * 0.6})`);
-    grad.addColorStop(1,    `rgba(120,10,0,0)`);
+    const a = (isLarge ? 0.95 : 0.80) * flameFactor;
+    grad.addColorStop(0,    `rgba(255,255,210,${a})`);
+    grad.addColorStop(0.2,  `rgba(255,240,60,${a})`);
+    grad.addColorStop(0.5,  `rgba(255,120,10,${a*0.95})`);
+    grad.addColorStop(0.78, `rgba(210,30,5,${a*0.7})`);
+    grad.addColorStop(1,    `rgba(100,8,0,0)`);
     ctx.fillStyle = grad;
     ctx.fill();
     ctx.restore();
   }
 
-  // Brasas pequeñas parpadeantes sobre el ladrillo
-  const numBrasas = Math.max(1, Math.floor(br.w / 20));
-  for (let i = 0; i < numBrasas; i++) {
-    const seed = br.burnSeed + i * 13.7 + 100;
-    const bx = br.x + br.w * 0.2 + (br.w * 0.6) * (i / numBrasas);
-    const by = br.y - 1;
-    const bIntens = Math.sin(now * 0.006 + seed) * 0.5 + 0.5;
-    const alpha = bIntens * flameFactor * 0.85;
-    const br2 = Math.round(180 + 75 * bIntens);
-    const bg2 = Math.round(40 + 80 * bIntens);
+  // 8 brasas parpadeantes
+  for(let i = 0; i < 8; i++){
+    const seed = br.burnSeed + i * 17.3 + 200;
+    const bx = br.x + br.w * 0.08 + br.w * 0.84 * (i / 7);
+    const by = br.y + Math.sin(seed) * 3;
+    const bIntens = Math.sin(now * 0.008 + seed) * 0.5 + 0.5;
+    const alpha = bIntens * flameFactor * 0.95;
+    const rr = Math.round(200 + 55 * bIntens);
+    const gg = Math.round(50 + 100 * bIntens);
     ctx.beginPath();
-    ctx.arc(bx, by, 1.5 * flameFactor, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(${br2},${bg2},0,${alpha})`;
-    ctx.fill();
-  }
-
-  // Resplandor de calor bajo el ladrillo
-  const glowR = br.w * 0.6 * flameFactor;
-  if (glowR > 1) {
-    const glow = ctx.createRadialGradient(cx, br.y + br.h * 0.5, 0, cx, br.y + br.h * 0.5, glowR);
-    glow.addColorStop(0, `rgba(255,80,0,${0.18 * flameFactor})`);
-    glow.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.beginPath();
-    ctx.ellipse(cx, br.y + br.h * 0.5, glowR, br.h * 0.4 * flameFactor, 0, 0, Math.PI * 2);
-    ctx.fillStyle = glow;
+    ctx.arc(bx, by, (2.2 + bIntens * 1.5) * flameFactor, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${rr},${gg},0,${alpha})`;
     ctx.fill();
   }
 }
@@ -405,51 +402,70 @@ class Ball{
   }
 }
 
-// ─── BOLA DE FUEGO ─────────────────────────────────────────────────────────
-class FireBall{
-  constructor(x,y,vx,vy,r=7){
-    this.x=x; this.y=y; this.vx=vx; this.vy=vy; this.r=r;
-    this.alive=true; this.trail=[];
-    this.hitCount=0; // máx 2 impactos como la bola normal
+// ─── PROYECTIL DE FUEGO (recto hacia arriba, como misil) ─────────────────────
+const BURN_TOTAL    = 300; // 5 seg a 60fps
+const SPREAD_EVERY  = 120; // transmite cada 2 seg
+
+class FireProjectile{
+  constructor(x, y){
+    this.x = x;
+    this.y = y;
+    this.vy = -11;  // sube recto, sin vx
+    this.r  = 7;
+    this.alive = true;
+    this.trail = [];
+    this.t = 0;
   }
-  update(W,H){
-    this.trail.push({x:this.x,y:this.y});
-    if(this.trail.length>10) this.trail.shift();
-    this.x+=this.vx; this.y+=this.vy;
-    if(this.x-this.r<0){this.x=this.r; this.vx=Math.abs(this.vx);}
-    if(this.x+this.r>W){this.x=W-this.r; this.vx=-Math.abs(this.vx);}
-    if(this.y-this.r<0){this.y=this.r; this.vy=Math.abs(this.vy);}
-    if(this.y>H+20) this.alive=false;
+  update(H){
+    this.trail.push({x:this.x, y:this.y});
+    if(this.trail.length > 14) this.trail.shift();
+    this.y += this.vy;
+    this.t++;
+    if(this.y < -20) this.alive = false;
   }
   draw(ctx){
-    // Estela naranja-roja
-    this.trail.forEach((p,i)=>{
-      const a=(i/this.trail.length)*0.5;
-      const r=this.r*(i/this.trail.length)*0.9;
-      ctx.globalAlpha=a;
-      ctx.fillStyle='#ff6600';
-      ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
-    });
-    ctx.globalAlpha=1;
-
-    // Cuerpo: esfera roja ardiente con gradiente
     const now = Date.now();
-    const flicker = 0.88 + 0.12*Math.sin(now*0.04);
+    // Estela de fuego
+    this.trail.forEach((p,i)=>{
+      const frac = i / this.trail.length;
+      ctx.globalAlpha = frac * 0.55;
+      ctx.fillStyle = `rgba(255,${Math.round(80+100*frac)},0,1)`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, this.r * frac * 0.85, 0, Math.PI*2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
 
-    ctx.shadowBlur=22;
-    ctx.shadowColor='#ff4400';
-
-    const grad = ctx.createRadialGradient(
-      this.x - this.r*0.3, this.y - this.r*0.3, 0,
+    // Cuerpo: bola ardiente con parpadeo
+    const flicker = 0.85 + 0.15*Math.sin(now * 0.05);
+    ctx.shadowBlur = 28; ctx.shadowColor = '#ff4400';
+    const gr = ctx.createRadialGradient(
+      this.x - this.r*0.3, this.y - this.r*0.35, 0,
       this.x, this.y, this.r
     );
-    grad.addColorStop(0,   `rgba(255,240,180,${flicker})`);
-    grad.addColorStop(0.35, `rgba(255,140,20,${flicker})`);
-    grad.addColorStop(0.7,  `rgba(220,40,0,${flicker*0.9})`);
-    grad.addColorStop(1,    `rgba(100,10,0,0.7)`);
-    ctx.fillStyle=grad;
-    ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fill();
-    ctx.shadowBlur=0;
+    gr.addColorStop(0,    `rgba(255,255,200,${flicker})`);
+    gr.addColorStop(0.3,  `rgba(255,180,20,${flicker})`);
+    gr.addColorStop(0.65, `rgba(230,50,0,${flicker*0.9})`);
+    gr.addColorStop(1,    `rgba(80,5,0,0.8)`);
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
+
+    // Mini llamas en la punta
+    const fw = this.r * 0.55, fh = this.r * 1.6;
+    for(let i = 0; i < 3; i++){
+      const seed = i * 4.1 + now * 0.007;
+      const fx = this.x + Math.sin(seed)*this.r*0.5;
+      const lean = Math.sin(seed + 1)*0.4;
+      ctx.save();
+      drawFlameShape(ctx, fx, this.y - this.r, fw*(0.6+Math.sin(seed)*0.3), fh*(0.7+Math.sin(seed+2)*0.3), lean);
+      const fg = ctx.createLinearGradient(fx, this.y - this.r - fh, fx, this.y - this.r);
+      fg.addColorStop(0,   `rgba(255,255,180,0.9)`);
+      fg.addColorStop(0.4, `rgba(255,160,20,0.8)`);
+      fg.addColorStop(1,   `rgba(200,40,0,0)`);
+      ctx.fillStyle = fg; ctx.fill();
+      ctx.restore();
+    }
+    ctx.shadowBlur = 0;
   }
 }
 
@@ -479,7 +495,7 @@ class Game{
     this.barrierTimer=0;
     // Fuego
     this.fireQueue=0;
-    this.fireObj=null; // FireBall en vuelo (solo una a la vez)
+    this.fireObj=null; // FireProjectile en vuelo (solo uno a la vez)
     this.initLevel();
   }
 
@@ -549,6 +565,7 @@ class Game{
           // fuego
           burning:false,
           burnTimer:0,
+          spreadTimer:0,
           burnSeed:Math.random()*1000,
         });
       }
@@ -558,19 +575,19 @@ class Game{
   // Prende fuego a un ladrillo
   igniteBrick(br){
     if(!br.alive || br.burning) return;
-    br.burning=true;
-    br.burnTimer=300; // 5 seg a 60fps
+    br.burning     = true;
+    br.burnTimer   = BURN_TOTAL;   // 5 seg a 60fps → muere
+    br.spreadTimer = SPREAD_EVERY; // 2 seg → primera transmisión
   }
 
-  // Al morir un ladrillo ardiendo, propaga a los adyacentes
-  spreadFireFrom(deadBr){
+  // Propaga fuego a ladrillos adyacentes (al morir o cada 2 seg)
+  spreadFireFrom(srcBr){
     this.bricks.forEach(br=>{
       if(!br.alive || br.burning) return;
-      // Adyacencia: sus bboxes se tocan (con margen de 1px)
-      const touching = !(deadBr.x + deadBr.w < br.x - 1 ||
-                         deadBr.x > br.x + br.w + 1 ||
-                         deadBr.y + deadBr.h < br.y - 1 ||
-                         deadBr.y > br.y + br.h + 1);
+      const touching = !(srcBr.x + srcBr.w < br.x - 1 ||
+                         srcBr.x > br.x + br.w + 1 ||
+                         srcBr.y + srcBr.h < br.y - 1 ||
+                         srcBr.y > br.y + br.h + 1);
       if(touching) this.igniteBrick(br);
     });
   }
@@ -607,14 +624,9 @@ class Game{
         };
       } else if(this.fireQueue>0 && !this.fireObj){
         this.fireQueue--;
-        const speed = 4+this.level*0.4;
-        const angle = -Math.PI/2+(Math.random()-0.5)*0.3;
-        this.fireObj = new FireBall(
-          this.paddle.x+this.paddle.w/2,
-          this.paddle.y - 8,
-          Math.cos(angle)*(speed*0.9),
-          Math.sin(angle)*(speed*0.9),
-          7
+        this.fireObj = new FireProjectile(
+          this.paddle.x + this.paddle.w/2,
+          this.paddle.y - 10
         );
       } else if(this.laserActive){
         this.lasers.push(new Laser(this.paddle.x+6, this.paddle.y));
@@ -839,59 +851,47 @@ class Game{
       if(ex.t>ex.duration) this.explosionObj=null;
     }
 
-    // ─── Bola de fuego ────────────────────────────────────────────────────
+    // ─── Proyectil de fuego (recto, sin rebotar) ─────────────────────────
     if(this.fireObj){
-      const fb = this.fireObj;
-      fb.update(W,H);
+      const fp = this.fireObj;
+      fp.update(H);
 
-      if(fb.alive){
-        // Colisión con paleta (rebota igual que bola normal)
-        if(fb.vy>0 && fb.y+fb.r>=paddle.y && fb.y-fb.r<=paddle.y+paddle.h
-          && fb.x>=paddle.x && fb.x<=paddle.x+paddle.w){
-          fb.y=paddle.y-fb.r;
-          const hitN=(fb.x-(paddle.x+paddle.w/2))/(paddle.w/2);
-          const angle=-Math.PI/2+hitN*0.8;
-          const speed=Math.hypot(fb.vx,fb.vy);
-          fb.vx=Math.cos(angle)*speed;
-          fb.vy=Math.sin(angle)*speed;
-        }
-
-        // Colisión con ladrillos: prende fuego, rebota (igual lógica que bola normal)
-        this.bricks.forEach(br=>{
-          if(!br.alive) return;
-          if(fb.x+fb.r>br.x && fb.x-fb.r<br.x+br.w && fb.y+fb.r>br.y && fb.y-fb.r<br.y+br.h){
-            // Rebotar
-            const overlapL=fb.x+fb.r-br.x, overlapR=br.x+br.w-(fb.x-fb.r);
-            const overlapT=fb.y+fb.r-br.y, overlapB=br.y+br.h-(fb.y-fb.r);
-            const minH=Math.min(overlapL,overlapR), minV=Math.min(overlapT,overlapB);
-            if(minH<minV) fb.vx=-fb.vx; else fb.vy=-fb.vy;
-
-            // Prende fuego al ladrillo (si no está ardiendo ya)
-            if(!br.burning){
-              this.igniteBrick(br);
-              // Partículas de ignición
-              this.spawnParticles(br.x+br.w/2, br.y+br.h/2, '#ff6600', 6);
-            }
-
-            fb.hitCount++;
-            if(fb.hitCount>=2) fb.alive=false;
+      if(fp.alive){
+        // Colisión con ladrillos: prende fuego y desaparece
+        for(let br of this.bricks){
+          if(!br.alive) continue;
+          if(fp.x+fp.r>br.x && fp.x-fp.r<br.x+br.w &&
+             fp.y-fp.r<br.y+br.h && fp.y+fp.r>br.y){
+            this.igniteBrick(br);
+            this.spawnParticles(br.x+br.w/2, br.y+br.h/2, '#ff6600', 10);
+            fp.alive = false;
+            break; // prende uno y desaparece
           }
-        });
+        }
       }
 
-      if(!fb.alive) this.fireObj=null;
+      if(!fp.alive) this.fireObj=null;
     }
 
     // ─── Ladrillos ardiendo ───────────────────────────────────────────────
     this.bricks.forEach(br=>{
       if(!br.alive || !br.burning) return;
+
       br.burnTimer--;
-      if(br.burnTimer<=0){
-        // El ladrillo muere por el fuego
-        br.alive=false;
-        this.score+=10*this.level; this.updateHUD();
-        this.spawnParticles(br.x+br.w/2, br.y+br.h/2, '#ff6600', 12);
-        // Propaga a adyacentes
+      br.spreadTimer--;
+
+      // Transmisión periódica cada 2 seg (mientras vive)
+      if(br.spreadTimer <= 0){
+        this.spreadFireFrom(br);
+        br.spreadTimer = SPREAD_EVERY; // reset para siguiente pulso
+      }
+
+      // Muerte a los 5 seg
+      if(br.burnTimer <= 0){
+        br.alive = false;
+        this.score += 10*this.level; this.updateHUD();
+        this.spawnParticles(br.x+br.w/2, br.y+br.h/2, '#ff6600', 14);
+        // Transmisión final al morir
         this.spreadFireFrom(br);
       }
     });
