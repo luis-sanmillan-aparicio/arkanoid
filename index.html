@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -854,6 +855,7 @@ class Game{
         const bcx=br.x+br.w/2, bcy=br.y+br.h/2;
         if(Math.hypot(bcx-ex.x,bcy-ex.y)<=currentR+br.w*0.4){
           br.alive=false;
+          br.burning=false;
           this.score+=10*this.level; this.updateHUD();
           this.spawnParticles(bcx,bcy,br.color[0],10);
           this._onBrickDestroyed(br);
@@ -1333,5 +1335,4 @@ resize();
 </script>
 </body>
 </html>
-
 
