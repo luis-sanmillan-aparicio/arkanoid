@@ -165,7 +165,7 @@
         <div class="pu-item"><div class="pu-dot" style="background:#ff006e"></div>Bola x2</div>
         <div class="pu-item"><div class="pu-dot" style="background:#ff69b4"></div>Bola x3</div>
         <div class="pu-item"><div class="pu-dot" style="background:#00f5ff"></div>⚡Laser x20</div>
-        <div class="pu-item"><div class="pu-dot" style="background:#00f5ff"></div>Fuego</div>
+        <div class="pu-item"><div class="pu-dot" style="background:#ff4500"></div>🔥Fuego</div>
         <div class="pu-item"><div class="pu-dot" style="background:#ff4500"></div>💥Implacable</div>
         <div class="pu-item"><div class="pu-dot" style="background:#ff2200"></div>🚀Misil</div>
         <div class="pu-item"><div class="pu-dot" style="background:#ff2200"></div>🛡Barrera</div>
@@ -217,6 +217,7 @@ const BRICK_COLORS = [
   ['#8338ec','#bb88ff'],
 ];
 
+// ─── Power‑up types ──────────────────────────────────────────────────────────
 const PU_TYPES = [
   {id:'life',        color:'#06ffa5', label:'❤'},
   {id:'wide',        color:'#ffbe0b', label:'▬'},
@@ -226,10 +227,12 @@ const PU_TYPES = [
   {id:'unstoppable', color:'#ff4500', label:'💥'},
   {id:'unstoppable', color:'#ff4500', label:'💥'},
   {id:'missile',     color:'#ff2200', label:'🚀'},
+  {id:'fire',        color:'#ff4500', label:'🔥'},
   {id:'barrier',     color:'#ff2200', label:'🛡'},
   {id:'skull',       color:'#888888', label:'💀'},
 ];
 
+// ─── Partícula genérica ──────────────────────────────────────────────────────
 class Particle{
   constructor(x,y,color){
     this.x=x; this.y=y; this.color=color;
@@ -248,8 +251,9 @@ class Particle{
   }
 }
 
+// ─── Láser ──────────────────────────────────────────────────────────────────
 class Laser{
-  constructor(x,y){this.x=x;this.y=y;this.vy=-12;this.w=3;this.h=16;}
+  constructor(x,y){this.x=x;this.y=y;this.vy=-12;this.w=3;this.h=16; this.alive=true;}
   update(){this.y+=this.vy;}
   draw(ctx){
     ctx.shadowBlur=10;ctx.shadowColor='#00f5ff';
@@ -259,6 +263,7 @@ class Laser{
   }
 }
 
+// ─── Power‑up caído ──────────────────────────────────────────────────────────
 class Powerup{
   constructor(x,y,type){
     this.x=x;this.y=y;this.type=type;
@@ -280,10 +285,15 @@ class Powerup{
   }
 }
 
+// ─── Bola ──────────────────────────────────────────────────────────────────
 class Ball{
   constructor(x,y,vx,vy,r=7){
     this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.r=r;
     this.alive=true; this.trail=[];
+    this.isFire=false;      // marca si es bola de fuego
+    this.unstoppable=false; // lo pone el juego
+    this.stuck=false;
+    this.baseSpeed=5;
   }
   update(W,H){
     this.trail.push({x:this.x,y:this.y});
@@ -295,7 +305,11 @@ class Ball{
     if(this.y>H+20) this.alive=false;
   }
   draw(ctx){
-    const trailColor = this.unstoppable ? '#ff4500' : '#00f5ff';
+    let trailColor = '#00f5ff';
+    if (this.unstoppable) trailColor = '#ff4500';
+    else if (this.isFire) trailColor = '#ff4500';
+
+    // estela
     this.trail.forEach((p,i)=>{
       const a=(i/this.trail.length)*0.4;
       const r=this.r*(i/this.trail.length)*0.8;
@@ -304,14 +318,30 @@ class Ball{
       ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);ctx.fill();
     });
     ctx.globalAlpha=1;
-    ctx.shadowBlur=this.unstoppable?28:20;
-    ctx.shadowColor=trailColor;
-    ctx.fillStyle=this.unstoppable?'#ffaa44':'#fff';
-    ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fill();
-    ctx.shadowBlur=0;
+
+    // cuerpo
+    if (this.isFire) {
+      ctx.shadowBlur=22;
+      ctx.shadowColor='#ff4500';
+      const grad = ctx.createRadialGradient(this.x-2, this.y-2, 1, this.x, this.y, this.r);
+      grad.addColorStop(0, '#fff');
+      grad.addColorStop(0.25, '#ffcc44');
+      grad.addColorStop(0.6, '#ff6600');
+      grad.addColorStop(1, '#cc1100');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+    } else {
+      ctx.shadowBlur=this.unstoppable?28:20;
+      ctx.shadowColor=trailColor;
+      ctx.fillStyle=this.unstoppable?'#ffaa44':'#fff';
+      ctx.beginPath();ctx.arc(this.x,this.y,this.r,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;
+    }
   }
 }
 
+// ─── Juego principal ──────────────────────────────────────────────────────
 class Game{
   constructor(){
     this.W=canvas.width; this.H=canvas.height;
@@ -328,10 +358,13 @@ class Game{
     this.lifeSpawnedThisLevel=false;
     // Misil
     this.missileQueue=0;
-    this.missileActive=false; // misil en vuelo
+    this.missileActive=false;
     this.missileObj=null;
     this.missileParticles=[];
     this.explosionObj=null;
+    // Fuego
+    this.fireQueue=0;
+    this.fireActive=false;
     // Barrera
     this.barrierActive=false;
     this.barrierTimer=0;
@@ -363,6 +396,8 @@ class Game{
     this.missileObj=null;
     this.missileParticles=[];
     this.explosionObj=null;
+    this.fireQueue=0;
+    this.fireActive=false;
     this.barrierActive=false;
     this.barrierTimer=0;
     this.initPaddle();
@@ -398,6 +433,10 @@ class Game{
           hp:1, maxHp:1,
           color:BRICK_COLORS[ci],
           alive:true,
+          // para fuego
+          onFire:false,
+          fireStartTime:0,
+          fireSeed:0,
         });
       }
     }
@@ -410,6 +449,7 @@ class Game{
     this.balls.forEach(b=>{if(b.stuck) b.x=this.paddle.x+this.paddle.w/2;});
   }
 
+  // ─── Disparo (tap) ──────────────────────────────────────────────────────
   onTap(){
     let released=false;
     this.balls.forEach(b=>{
@@ -422,8 +462,9 @@ class Game{
       }
     });
 
-
+    // Orden: misil → fuego → láser → (si nada, ya se lanzó la bola)
     if(!released && this.missileQueue>0 && !this.missileActive){
+      // disparar misil (código existente)
       this.missileActive=true;
       this.missileQueue--;
       const BALL_R=7;
@@ -432,24 +473,36 @@ class Game{
         y:this.paddle.y-BALL_R*2,
         vy:-10, alive:true, trail:[], smokeT:0,
       };
+    } else if(!released && this.fireQueue>0 && !this.fireActive){
+      // ─── Disparar bola de fuego ──────────────────────────────────────
+      this.fireQueue--;
+      this.fireActive=true;
+      const speed = 4 + this.level * 0.4;
+      const angle = -Math.PI/2 + (Math.random()-0.5)*0.3;
+      const fb = new Ball(
+        this.paddle.x + this.paddle.w/2,
+        this.paddle.y - 8,
+        Math.cos(angle)*speed,
+        Math.sin(angle)*speed,
+        7
+      );
+      fb.isFire = true;
+      fb.baseSpeed = speed;
+      this.balls.push(fb);
     } else if(!released && this.laserActive){
       this.lasers.push(new Laser(this.paddle.x+6, this.paddle.y));
       this.lasers.push(new Laser(this.paddle.x+this.paddle.w-6, this.paddle.y));
       this.laserShots--;
       if(this.laserShots<=0){ this.laserActive=false; this.laserShots=0; }
     }
-
-
-
-    
-    
-    
   }
 
+  // ─── Partículas ──────────────────────────────────────────────────────────
   spawnParticles(x,y,color,n=8){
     for(let i=0;i<n;i++) this.particles.push(new Particle(x,y,color));
   }
 
+  // ─── Drop de power‑up ──────────────────────────────────────────────────
   dropPowerup(br){
     let pool = PU_TYPES.filter(p => {
       if(p.id==='skull' && this.skullSpawnedThisLevel) return false;
@@ -467,6 +520,7 @@ class Game{
     this.powerups.push(new Powerup(br.x+br.w/2, br.y+br.h/2, pt.id));
   }
 
+  // ─── Aplicar power‑up ──────────────────────────────────────────────────
   applyPowerup(type){
     const p=this.paddle;
     switch(type){
@@ -513,6 +567,9 @@ class Game{
       case 'missile':
         this.missileQueue++;
         this.showMsg('🚀 MISIL DESTRUCTOR','#ff2200'); break;
+      case 'fire':
+        this.fireQueue++;
+        this.showMsg('🔥 FUEGO','#ff4500'); break;
       case 'barrier':
         this.barrierActive=true;
         this.barrierTimer=900;
@@ -520,6 +577,7 @@ class Game{
     }
   }
 
+  // ─── Misil: explosión ──────────────────────────────────────────────────
   doMissileExplosion(ex,ey){
     const BW=(this.W-12*2-4*(8-1))/8;
     const m=this.missileObj;
@@ -554,10 +612,41 @@ class Game{
     this.showMsg('💥 BOOM!','#ff4400');
   }
 
+  // ─── Fuego: encender un ladrillo ──────────────────────────────────────
+  igniteBrick(br){
+    if(!br.alive || br.onFire) return;
+    br.onFire = true;
+    br.fireStartTime = performance.now();
+    br.fireSeed = Math.random() * 100;
+    this.spawnParticles(br.x + br.w/2, br.y + br.h/2, '#ff6600', 10);
+  }
+
+  // ─── Obtener vecinos (4 direcciones) ──────────────────────────────────
+  getNeighbors(br){
+    const neighbors = [];
+    const tol = 2;
+    for (let other of this.bricks) {
+      if (other === br || !other.alive) continue;
+      const dx = Math.abs((br.x + br.w/2) - (other.x + other.w/2));
+      const dy = Math.abs((br.y + br.h/2) - (other.y + other.h/2));
+      // vecino horizontal (izquierda/derecha)
+      if (Math.abs(dy) < tol && dx < br.w/2 + other.w/2) {
+        neighbors.push(other);
+      }
+      // vecino vertical (arriba/abajo)
+      else if (Math.abs(dx) < tol && dy < br.h/2 + other.h/2) {
+        neighbors.push(other);
+      }
+    }
+    return neighbors;
+  }
+
+  // ─── Actualización principal ──────────────────────────────────────────
   update(){
     if(this.state!=='playing') return;
     const {W,H,paddle}=this;
 
+    // temporizadores de paleta
     if(paddle.wideTimer>0){paddle.wideTimer--;if(paddle.wideTimer===0) paddle.w=paddle.baseW;}
     if(this.unstoppableTimer>0){this.unstoppableTimer--;if(this.unstoppableTimer===0){this.unstoppable=false;this.balls.forEach(b=>b.unstoppable=false);}}
 
@@ -565,7 +654,6 @@ class Game{
     if(this.barrierActive){
       this.barrierTimer--;
       if(this.barrierTimer<=0){this.barrierActive=false;}
-      // Rebote de bolas en la barrera
       this.balls.forEach(b=>{
         if(b.stuck) return;
         const by=paddle.y+paddle.h/2;
@@ -576,7 +664,7 @@ class Game{
       });
     }
 
-    // Misil
+    // ─── Misil ──────────────────────────────────────────────────────────────
     if(this.missileObj && this.missileObj.alive){
       const m=this.missileObj;
       const BALL_R=7, MW=BALL_R*2;
@@ -584,7 +672,6 @@ class Game{
       if(m.trail.length>20) m.trail.shift();
       m.y+=m.vy;
       m.smokeT++;
-      // Partículas de propulsión
       if(m.smokeT%2===0){
         this.missileParticles.push({
           x:m.x+(Math.random()*4-2), y:m.y+MW,
@@ -601,7 +688,6 @@ class Game{
           r:1.5, life:1, decay:0.12, smoke:false, color:'#ffcc44',
         });
       }
-      // Colisión con ladrillo
       let hit=false;
       for(let br of this.bricks){
         if(!br.alive) continue;
@@ -613,14 +699,12 @@ class Game{
         }
       }
       if(!hit && m.y<-40){ m.alive=false; this.missileActive=false; }
-      // Partículas del misil
       this.missileParticles.forEach(p=>{
         p.x+=p.vx; p.y+=p.vy; p.life-=p.decay; p.r*=0.97;
         if(!p.smoke) p.vy+=0.15;
       });
       this.missileParticles=this.missileParticles.filter(p=>p.life>0);
     } else if(this.missileObj && !this.missileObj.alive){
-      // Partículas de explosión siguen vivas tras el misil muerto
       this.missileParticles.forEach(p=>{
         p.x+=p.vx; p.y+=p.vy; p.life-=p.decay; p.r*=0.97;
         if(!p.smoke) p.vy+=0.15;
@@ -629,7 +713,6 @@ class Game{
       if(this.missileParticles.length===0) this.missileObj=null;
     }
 
-    // Explosión del misil
     if(this.explosionObj){
       const ex=this.explosionObj;
       ex.t++;
@@ -639,6 +722,7 @@ class Game{
         const bcx=br.x+br.w/2, bcy=br.y+br.h/2;
         if(Math.hypot(bcx-ex.x,bcy-ex.y)<=currentR+br.w*0.4){
           br.alive=false;
+          br.onFire=false;
           this.score+=10*this.level; this.updateHUD();
           this.spawnParticles(bcx,bcy,br.color[0],10);
         }
@@ -646,9 +730,11 @@ class Game{
       if(ex.t>ex.duration) this.explosionObj=null;
     }
 
+    // ─── Bolas ──────────────────────────────────────────────────────────────
     this.balls.forEach(b=>{
       if(b.stuck) return;
       b.update(W,H);
+      // colisión con paleta
       if(b.vy>0 && b.y+b.r>=paddle.y && b.y-b.r<=paddle.y+paddle.h
         && b.x>=paddle.x && b.x<=paddle.x+paddle.w){
         b.y=paddle.y-b.r;
@@ -661,19 +747,37 @@ class Game{
         const s=Math.hypot(b.vx,b.vy);
         if(s>maxS){b.vx=b.vx/s*maxS;b.vy=b.vy/s*maxS;}
       }
+
+      // colisión con ladrillos
       this.bricks.forEach(br=>{
         if(!br.alive) return;
         if(b.x+b.r>br.x && b.x-b.r<br.x+br.w && b.y+b.r>br.y && b.y-b.r<br.y+br.h){
+          // ── Bola imparable ──
           if(b.unstoppable){
-            br.hp=0; br.alive=false;
+            br.alive=false;
+            br.onFire=false;
             this.score+=10*this.level;
             this.updateHUD();
             this.spawnParticles(br.x+br.w/2,br.y+br.h/2,br.color[0],14);
             if(Math.random()<0.20) this.dropPowerup(br);
-          } else {
+          }
+          // ── Bola de fuego ──
+          else if(b.isFire){
+            if(!br.onFire){
+              this.igniteBrick(br);
+            }
+            // rebote igual
+            const overlapL=b.x+b.r-br.x, overlapR=br.x+br.w-(b.x-b.r);
+            const overlapT=b.y+b.r-br.y, overlapB=br.y+br.h-(b.y-b.r);
+            const minH=Math.min(overlapL,overlapR), minV=Math.min(overlapT,overlapB);
+            if(minH<minV) b.vx=-b.vx; else b.vy=-b.vy;
+          }
+          // ── Bola normal ──
+          else {
             br.hp--;
             if(br.hp<=0){
               br.alive=false;
+              br.onFire=false;
               this.score+=10*this.level;
               this.updateHUD();
               this.spawnParticles(br.x+br.w/2,br.y+br.h/2,br.color[0]);
@@ -690,7 +794,14 @@ class Game{
       });
     });
 
+    // eliminar bolas muertas y actualizar fireActive
     this.balls=this.balls.filter(b=>b.alive||b.stuck);
+    // si no hay ninguna bola con isFire, desactivar fireActive
+    if (!this.balls.some(b => b.isFire)) {
+      this.fireActive = false;
+    }
+
+    // perder vida si no hay bolas
     if(this.balls.length===0){
       this.lives--;
       this.updateHUD();
@@ -702,6 +813,7 @@ class Game{
       this.showMsg('PERDISTE UNA VIDA','#ff006e');
     }
 
+    // ─── Power‑ups caídos ──────────────────────────────────────────────────
     this.powerups.forEach(pu=>{
       pu.update();
       if(pu.y+pu.h/2>paddle.y && pu.y-pu.h/2<paddle.y+paddle.h
@@ -714,12 +826,14 @@ class Game{
     });
     this.powerups=this.powerups.filter(p=>p.alive);
 
+    // ─── Láseres ────────────────────────────────────────────────────────────
     this.lasers.forEach(l=>{
       l.update();
       this.bricks.forEach(br=>{
         if(!br.alive) return;
         if(l.x>br.x && l.x<br.x+br.w && l.y<br.y+br.h && l.y+l.h>br.y){
-          br.hp=0;br.alive=false;
+          br.alive=false;
+          br.onFire=false;
           this.score+=5*this.level;this.updateHUD();
           this.spawnParticles(br.x+br.w/2,br.y+br.h/2,br.color[0]);
           l.alive=false;
@@ -729,22 +843,52 @@ class Game{
     });
     this.lasers=this.lasers.filter(l=>l.alive!==false);
 
+    // ─── Partículas genéricas ──────────────────────────────────────────────
     this.particles.forEach(p=>p.update());
     this.particles=this.particles.filter(p=>p.life>0);
 
+    // ─── Fuego en ladrillos (temporizador y propagación) ──────────────────
+    const now = performance.now();
+    const toDestroy = [];
+    for (let br of this.bricks) {
+      if (br.alive && br.onFire) {
+        if (now - br.fireStartTime >= 5000) {
+          toDestroy.push(br);
+        }
+      }
+    }
+    for (let br of toDestroy) {
+      br.alive = false;
+      br.onFire = false;
+      this.score += 5 * this.level;
+      this.updateHUD();
+      this.spawnParticles(br.x + br.w/2, br.y + br.h/2, '#ff8800', 14);
+      // propagar a vecinos
+      const neighbors = this.getNeighbors(br);
+      for (let nb of neighbors) {
+        if (nb.alive && !nb.onFire) {
+          this.igniteBrick(nb);
+        }
+      }
+    }
+
+    // ─── Victoria ──────────────────────────────────────────────────────────
     if(this.bricks.every(b=>!b.alive)){this.state='won';}
   }
 
+  // ─── Dibujo ──────────────────────────────────────────────────────────────
   draw(){
     const {W,H,paddle}=this;
     ctx.fillStyle=`#050510`;
     ctx.fillRect(0,0,W,H);
 
+    // rejilla
     ctx.strokeStyle='rgba(0,245,255,0.04)';ctx.lineWidth=1;
     const gs=30;
     for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
     for(let y=0;y<H;y+=gs){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 
+    // ─── Ladrillos ──────────────────────────────────────────────────────────
     this.bricks.forEach(br=>{
       if(!br.alive) return;
       const alpha=0.4+0.6*(br.hp/br.maxHp);
@@ -770,10 +914,20 @@ class Game{
       ctx.globalAlpha=1;
     });
 
+    // ─── Efecto de fuego sobre ladrillos (llama) ──────────────────────────
+    for (let br of this.bricks) {
+      if (br.alive && br.onFire) {
+        this.drawFireOnBrick(ctx, br);
+      }
+    }
+
+    // ─── Power‑ups caídos ──────────────────────────────────────────────────
     this.powerups.forEach(p=>p.draw(ctx));
+
+    // ─── Láseres ────────────────────────────────────────────────────────────
     this.lasers.forEach(l=>l.draw(ctx));
 
-    // Barrera protectora
+    // ─── Barrera ────────────────────────────────────────────────────────────
     if(this.barrierActive){
       const by=paddle.y+paddle.h/2;
       const alpha=this.barrierTimer<360?(this.barrierTimer/360):1;
@@ -787,7 +941,7 @@ class Game{
       ctx.globalAlpha=1;
     }
 
-    // Partículas del misil (humo debajo, fuego encima)
+    // ─── Partículas del misil ──────────────────────────────────────────────
     if(this.missileParticles.length){
       this.missileParticles.filter(p=>p.smoke).forEach(p=>{
         ctx.globalAlpha=p.life*0.22;
@@ -804,12 +958,11 @@ class Game{
       ctx.globalAlpha=1;
     }
 
-    // Explosión del misil
+    // ─── Explosión del misil ──────────────────────────────────────────────
     if(this.explosionObj){
       const ex=this.explosionObj;
       const prog=Math.min(1,ex.t/ex.duration);
       const cx=ex.x, cy=ex.y;
-      // Resplandor
       if(prog<0.75){
         const gr=ex.radius*1.5*(1-prog*0.65);
         const g0=ctx.createRadialGradient(cx,cy,0,cx,cy,gr);
@@ -817,7 +970,6 @@ class Game{
         g0.addColorStop(1,'rgba(255,30,0,0)');
         ctx.fillStyle=g0; ctx.beginPath();ctx.arc(cx,cy,gr,0,Math.PI*2);ctx.fill();
       }
-      // Bola de fuego
       const coreR=Math.max(0,ex.radius*0.6*(1-Math.pow(prog,1.15)));
       if(coreR>1){
         const g1=ctx.createRadialGradient(cx,cy,0,cx,cy,coreR);
@@ -832,7 +984,6 @@ class Game{
           ctx.fillStyle='#fff'; ctx.beginPath();ctx.arc(cx,cy,coreR*0.4,0,Math.PI*2);ctx.fill();
         }
       }
-      // Onda de choque
       const shockR=ex.radius*Math.min(1,ex.t/(ex.duration*0.55));
       const shockA=prog<0.55?0.55:Math.max(0,(1-prog)*1.3);
       if(shockA>0.02){
@@ -848,11 +999,10 @@ class Game{
       ctx.globalAlpha=1;
     }
 
-    // Misil en vuelo
+    // ─── Misil en vuelo ────────────────────────────────────────────────────
     if(this.missileObj && this.missileObj.alive){
       const m=this.missileObj;
       const BALL_R=7, MW=BALL_R*2, mH=MW*3.8;
-      // Estela
       m.trail.forEach((pt,i)=>{
         const t=i/m.trail.length;
         ctx.globalAlpha=t*0.5;
@@ -864,23 +1014,17 @@ class Game{
       ctx.globalAlpha=1;
       ctx.save(); ctx.translate(m.x,m.y);
       ctx.shadowBlur=18; ctx.shadowColor='#ff4400';
-      // Cuerpo
       const bg=ctx.createLinearGradient(-MW/2,0,MW/2,0);
       bg.addColorStop(0,'#555');bg.addColorStop(0.3,'#ddd');bg.addColorStop(0.65,'#bbb');bg.addColorStop(1,'#444');
       ctx.fillStyle=bg;
       ctx.beginPath();ctx.roundRect(-MW/2,-mH*0.55,MW,mH*0.55,2);ctx.fill();
-      // Ojiva
       ctx.fillStyle='#cc2200';
       ctx.beginPath();ctx.moveTo(0,-mH*0.55-mH*0.32);ctx.lineTo(-MW/2,-mH*0.55);ctx.lineTo(MW/2,-mH*0.55);ctx.closePath();ctx.fill();
-      // Franja
       ctx.fillStyle='rgba(220,0,0,0.65)';ctx.fillRect(-MW/2,-mH*0.33,MW,mH*0.075);
-      // Aletas
       ctx.fillStyle='#777';
       ctx.beginPath();ctx.moveTo(-MW/2,0);ctx.lineTo(-MW*1.15,mH*0.14);ctx.lineTo(-MW*1.05,mH*0.02);ctx.lineTo(-MW/2,-mH*0.2);ctx.closePath();ctx.fill();
       ctx.beginPath();ctx.moveTo(MW/2,0);ctx.lineTo(MW*1.15,mH*0.14);ctx.lineTo(MW*1.05,mH*0.02);ctx.lineTo(MW/2,-mH*0.2);ctx.closePath();ctx.fill();
-      // Tobera
       ctx.fillStyle='#1a1a1a';ctx.beginPath();ctx.ellipse(0,0,MW*0.42,MW*0.25,0,0,Math.PI*2);ctx.fill();
-      // Llama
       const flk=0.72+0.28*Math.sin(Date.now()*0.06);
       const fg=ctx.createRadialGradient(0,mH*0.1*flk,0,0,mH*0.15*flk,MW*0.65*flk);
       fg.addColorStop(0,'rgba(255,255,190,1)');fg.addColorStop(0.35,'rgba(255,130,0,0.9)');fg.addColorStop(1,'rgba(200,0,0,0)');
@@ -890,11 +1034,14 @@ class Game{
       ctx.shadowBlur=0; ctx.restore(); ctx.globalAlpha=1;
     }
 
+    // ─── Paleta ─────────────────────────────────────────────────────────────
     const pg=ctx.createLinearGradient(paddle.x,paddle.y,paddle.x,paddle.y+paddle.h);
     pg.addColorStop(0,'#88ffff');pg.addColorStop(1,'#00b8cc');
     ctx.shadowBlur=16;ctx.shadowColor='#00f5ff';
     ctx.fillStyle=pg;
     ctx.beginPath();ctx.roundRect(paddle.x,paddle.y,paddle.w,paddle.h,paddle.h/2);ctx.fill();
+
+    // ─── Indicador de láser ─────────────────────────────────────────────────
     if(this.laserActive){
       ctx.fillStyle='#00f5ff';
       ctx.shadowColor='#00f5ff';ctx.shadowBlur=20;
@@ -905,7 +1052,8 @@ class Game{
       ctx.textAlign='center';ctx.textBaseline='bottom';
       ctx.fillText('⚡'+this.laserShots, paddle.x+paddle.w/2, paddle.y-20);
     }
-    // Pico central del misil
+
+    // ─── Indicador de misil (pico) ─────────────────────────────────────────
     if(this.missileQueue>0 || this.missileActive){
       const pikX=paddle.x+paddle.w/2;
       ctx.shadowColor='#88ffff'; ctx.shadowBlur=14;
@@ -922,11 +1070,50 @@ class Game{
         ctx.fillText('×'+this.missileQueue, pikX, paddle.y-10);
       }
     }
+
+    // ─── Indicador de fuego (llama pequeña) ──────────────────────────────
+    if(this.fireQueue>0 || this.fireActive){
+      const fx = paddle.x + paddle.w/2;
+      const fw = 10, fh = 16;
+      const lean = 0.2 * Math.sin(performance.now() / 200);
+      ctx.save();
+      ctx.shadowColor = '#ff4500';
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      const tipX = fx + lean * fw * 0.5;
+      const tipY = paddle.y - 9 - fh;
+      const base = paddle.y - 9;
+      ctx.moveTo(fx - fw/2, base);
+      ctx.bezierCurveTo(fx - fw/2, base - fh*0.3, tipX - fw*0.2, tipY + fh*0.2, tipX, tipY);
+      ctx.bezierCurveTo(tipX + fw*0.2, tipY + fh*0.2, fx + fw/2, base - fh*0.3, fx + fw/2, base);
+      ctx.quadraticCurveTo(fx, base + fw*0.3, fx - fw/2, base);
+      ctx.closePath();
+      const fgrad = ctx.createLinearGradient(fx, tipY, fx, base);
+      fgrad.addColorStop(0, '#fff');
+      fgrad.addColorStop(0.25, '#ffcc44');
+      fgrad.addColorStop(0.6, '#ff6600');
+      fgrad.addColorStop(1, '#cc1100');
+      ctx.fillStyle = fgrad;
+      ctx.fill();
+      ctx.restore();
+      if(this.fireQueue>0){
+        ctx.fillStyle = '#ff8800';
+        ctx.font = 'bold 11px Orbitron,monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText('×'+this.fireQueue, fx, paddle.y - 10);
+      }
+    }
+
     ctx.shadowBlur=0;
 
+    // ─── Bolas ──────────────────────────────────────────────────────────────
     this.balls.forEach(b=>b.draw(ctx));
+
+    // ─── Partículas genéricas ──────────────────────────────────────────────
     this.particles.forEach(p=>p.draw(ctx));
 
+    // ─── Mensaje "toca para lanzar" ──────────────────────────────────────
     if(this.balls.some(b=>b.stuck)){
       ctx.globalAlpha=0.5+0.5*Math.sin(Date.now()*0.005);
       ctx.fillStyle='#00f5ff';ctx.font='bold 11px Orbitron,monospace';
@@ -936,6 +1123,37 @@ class Game{
     }
   }
 
+  // ─── Dibujar llama sobre un ladrillo (adaptado del HTML del fuego) ────
+  drawFireOnBrick(ctx, br){
+    const cx = br.x + br.w/2;
+    const cy = br.y + br.h/2;
+    const w = br.w * 0.8;
+    const h = br.h * 2.0;
+    const lean = 0.3 * Math.sin(performance.now() / 300 + br.fireSeed);
+    ctx.save();
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = '#ff4500';
+    ctx.beginPath();
+    const tipX = cx + lean * w * 0.5;
+    const tipY = cy - h;
+    const base = cy + br.h * 0.2;
+    ctx.moveTo(cx - w/2, base);
+    ctx.bezierCurveTo(cx - w/2, base - h * 0.3, tipX - w * 0.2, tipY + h * 0.2, tipX, tipY);
+    ctx.bezierCurveTo(tipX + w * 0.2, tipY + h * 0.2, cx + w/2, base - h * 0.3, cx + w/2, base);
+    ctx.quadraticCurveTo(cx, base + w * 0.3, cx - w/2, base);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(cx, tipY, cx, base);
+    grad.addColorStop(0, 'rgba(255,255,220,0.95)');
+    grad.addColorStop(0.25, 'rgba(255,230,60,0.95)');
+    grad.addColorStop(0.55, 'rgba(255,110,10,0.9)');
+    grad.addColorStop(0.85, 'rgba(200,30,5,0.7)');
+    grad.addColorStop(1, 'rgba(120,10,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ─── HUD ──────────────────────────────────────────────────────────────────
   updateHUD(){
     document.getElementById('score-val').textContent = this.score;
     document.getElementById('level-val').textContent = this.level;
@@ -951,6 +1169,7 @@ class Game{
   }
 }
 
+// ─── Control principal ────────────────────────────────────────────────────
 let game=null;
 let animId=null;
 
@@ -982,7 +1201,7 @@ function loop(){
   }
 }
 
-function startGame(level=1, score=0, lives=3){
+function startGame(level=1, score=0, lives=1){
   document.getElementById('ov-start').classList.add('hidden');
   document.getElementById('ov-over').classList.add('hidden');
   document.getElementById('ov-win').classList.add('hidden');
@@ -995,8 +1214,8 @@ function startGame(level=1, score=0, lives=3){
   loop();
 }
 
-document.getElementById('btn-start').addEventListener('click',()=>startGame(1,0,3));
-document.getElementById('btn-restart').addEventListener('click',()=>startGame(1,0,3));
+document.getElementById('btn-start').addEventListener('click',()=>startGame(1,0,1));
+document.getElementById('btn-restart').addEventListener('click',()=>startGame(1,0,1));
 document.getElementById('btn-next').addEventListener('click',()=>{
   const l=game?game.level+1:1;
   const s=game?game.score:0;
