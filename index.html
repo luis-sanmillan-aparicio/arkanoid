@@ -10,17 +10,8 @@
   @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
 
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-  
-  #wrapper, #wrapper * {
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-  }
-  
-  canvas {
-    touch-action: none;
-    -webkit-tap-highlight-color: transparent;
-  }
+  #wrapper, #wrapper * { user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+  canvas { touch-action:none; -webkit-tap-highlight-color:transparent; }
 
   :root{
     --neon-cyan:#00f5ff;
@@ -41,11 +32,11 @@
 
   #wrapper{
     width:100%;
-    height: 100vh;
-    height: 100dvh;
+    height:100vh;
+    height:100dvh;
     display:flex;flex-direction:column;
     align-items:center;justify-content:flex-start;
-    padding-top:max(env(safe-area-inset-top), 8px);
+    padding-top:max(env(safe-area-inset-top),8px);
     padding-bottom:0;
     padding-left:env(safe-area-inset-left);
     padding-right:env(safe-area-inset-right);
@@ -290,8 +281,8 @@ class Ball{
   constructor(x,y,vx,vy,r=7){
     this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.r=r;
     this.alive=true; this.trail=[];
-    this.isFire=false;      // marca si es bola de fuego
-    this.unstoppable=false; // lo pone el juego
+    this.isFire=false;      // bola de fuego
+    this.unstoppable=false;
     this.stuck=false;
     this.baseSpeed=5;
   }
@@ -309,7 +300,6 @@ class Ball{
     if (this.unstoppable) trailColor = '#ff4500';
     else if (this.isFire) trailColor = '#ff4500';
 
-    // estela
     this.trail.forEach((p,i)=>{
       const a=(i/this.trail.length)*0.4;
       const r=this.r*(i/this.trail.length)*0.8;
@@ -319,7 +309,6 @@ class Ball{
     });
     ctx.globalAlpha=1;
 
-    // cuerpo
     if (this.isFire) {
       ctx.shadowBlur=22;
       ctx.shadowColor='#ff4500';
@@ -433,7 +422,6 @@ class Game{
           hp:1, maxHp:1,
           color:BRICK_COLORS[ci],
           alive:true,
-          // para fuego
           onFire:false,
           fireStartTime:0,
           fireSeed:0,
@@ -462,9 +450,9 @@ class Game{
       }
     });
 
-    // Orden: misil → fuego → láser → (si nada, ya se lanzó la bola)
+    // Orden: misil → fuego → láser
     if(!released && this.missileQueue>0 && !this.missileActive){
-      // disparar misil (código existente)
+      // disparar misil
       this.missileActive=true;
       this.missileQueue--;
       const BALL_R=7;
@@ -474,7 +462,7 @@ class Game{
         vy:-10, alive:true, trail:[], smokeT:0,
       };
     } else if(!released && this.fireQueue>0 && !this.fireActive){
-      // ─── Disparar bola de fuego ──────────────────────────────────────
+      // disparar bola de fuego
       this.fireQueue--;
       this.fireActive=true;
       const speed = 4 + this.level * 0.4;
@@ -497,12 +485,10 @@ class Game{
     }
   }
 
-  // ─── Partículas ──────────────────────────────────────────────────────────
   spawnParticles(x,y,color,n=8){
     for(let i=0;i<n;i++) this.particles.push(new Particle(x,y,color));
   }
 
-  // ─── Drop de power‑up ──────────────────────────────────────────────────
   dropPowerup(br){
     let pool = PU_TYPES.filter(p => {
       if(p.id==='skull' && this.skullSpawnedThisLevel) return false;
@@ -520,7 +506,6 @@ class Game{
     this.powerups.push(new Powerup(br.x+br.w/2, br.y+br.h/2, pt.id));
   }
 
-  // ─── Aplicar power‑up ──────────────────────────────────────────────────
   applyPowerup(type){
     const p=this.paddle;
     switch(type){
@@ -621,7 +606,6 @@ class Game{
     this.spawnParticles(br.x + br.w/2, br.y + br.h/2, '#ff6600', 10);
   }
 
-  // ─── Obtener vecinos (4 direcciones) ──────────────────────────────────
   getNeighbors(br){
     const neighbors = [];
     const tol = 2;
@@ -629,12 +613,9 @@ class Game{
       if (other === br || !other.alive) continue;
       const dx = Math.abs((br.x + br.w/2) - (other.x + other.w/2));
       const dy = Math.abs((br.y + br.h/2) - (other.y + other.h/2));
-      // vecino horizontal (izquierda/derecha)
       if (Math.abs(dy) < tol && dx < br.w/2 + other.w/2) {
         neighbors.push(other);
-      }
-      // vecino vertical (arriba/abajo)
-      else if (Math.abs(dx) < tol && dy < br.h/2 + other.h/2) {
+      } else if (Math.abs(dx) < tol && dy < br.h/2 + other.h/2) {
         neighbors.push(other);
       }
     }
@@ -646,7 +627,6 @@ class Game{
     if(this.state!=='playing') return;
     const {W,H,paddle}=this;
 
-    // temporizadores de paleta
     if(paddle.wideTimer>0){paddle.wideTimer--;if(paddle.wideTimer===0) paddle.w=paddle.baseW;}
     if(this.unstoppableTimer>0){this.unstoppableTimer--;if(this.unstoppableTimer===0){this.unstoppable=false;this.balls.forEach(b=>b.unstoppable=false);}}
 
@@ -761,12 +741,12 @@ class Game{
             this.spawnParticles(br.x+br.w/2,br.y+br.h/2,br.color[0],14);
             if(Math.random()<0.20) this.dropPowerup(br);
           }
-          // ── Bola de fuego ──
+          // ── Bola de fuego ── (no destruye, solo enciende)
           else if(b.isFire){
             if(!br.onFire){
               this.igniteBrick(br);
             }
-            // rebote igual
+            // rebote normal
             const overlapL=b.x+b.r-br.x, overlapR=br.x+br.w-(b.x-b.r);
             const overlapT=b.y+b.r-br.y, overlapB=br.y+br.h-(b.y-b.r);
             const minH=Math.min(overlapL,overlapR), minV=Math.min(overlapT,overlapB);
@@ -794,14 +774,11 @@ class Game{
       });
     });
 
-    // eliminar bolas muertas y actualizar fireActive
     this.balls=this.balls.filter(b=>b.alive||b.stuck);
-    // si no hay ninguna bola con isFire, desactivar fireActive
     if (!this.balls.some(b => b.isFire)) {
       this.fireActive = false;
     }
 
-    // perder vida si no hay bolas
     if(this.balls.length===0){
       this.lives--;
       this.updateHUD();
@@ -843,7 +820,6 @@ class Game{
     });
     this.lasers=this.lasers.filter(l=>l.alive!==false);
 
-    // ─── Partículas genéricas ──────────────────────────────────────────────
     this.particles.forEach(p=>p.update());
     this.particles=this.particles.filter(p=>p.life>0);
 
@@ -872,7 +848,6 @@ class Game{
       }
     }
 
-    // ─── Victoria ──────────────────────────────────────────────────────────
     if(this.bricks.every(b=>!b.alive)){this.state='won';}
   }
 
@@ -882,7 +857,6 @@ class Game{
     ctx.fillStyle=`#050510`;
     ctx.fillRect(0,0,W,H);
 
-    // rejilla
     ctx.strokeStyle='rgba(0,245,255,0.04)';ctx.lineWidth=1;
     const gs=30;
     for(let x=0;x<W;x+=gs){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
@@ -921,10 +895,7 @@ class Game{
       }
     }
 
-    // ─── Power‑ups caídos ──────────────────────────────────────────────────
     this.powerups.forEach(p=>p.draw(ctx));
-
-    // ─── Láseres ────────────────────────────────────────────────────────────
     this.lasers.forEach(l=>l.draw(ctx));
 
     // ─── Barrera ────────────────────────────────────────────────────────────
@@ -1041,7 +1012,7 @@ class Game{
     ctx.fillStyle=pg;
     ctx.beginPath();ctx.roundRect(paddle.x,paddle.y,paddle.w,paddle.h,paddle.h/2);ctx.fill();
 
-    // ─── Indicador de láser ─────────────────────────────────────────────────
+    // ─── Indicador de láser (círculos) ─────────────────────────────────────
     if(this.laserActive){
       ctx.fillStyle='#00f5ff';
       ctx.shadowColor='#00f5ff';ctx.shadowBlur=20;
@@ -1055,7 +1026,7 @@ class Game{
 
     // ─── Indicador de misil (pico) ─────────────────────────────────────────
     if(this.missileQueue>0 || this.missileActive){
-      const pikX=paddle.x+paddle.w/2;
+      const pikX = paddle.x + paddle.w/2 - 12; // ligeramente a la izquierda
       ctx.shadowColor='#88ffff'; ctx.shadowBlur=14;
       ctx.fillStyle='#88ffff';
       ctx.beginPath();
@@ -1071,49 +1042,29 @@ class Game{
       }
     }
 
-    // ─── Indicador de fuego (llama pequeña) ──────────────────────────────
+    // ─── Indicador de fuego (pico, tercera línea) ──────────────────────────
     if(this.fireQueue>0 || this.fireActive){
-      const fx = paddle.x + paddle.w/2;
-      const fw = 10, fh = 16;
-      const lean = 0.2 * Math.sin(performance.now() / 200);
-      ctx.save();
-      ctx.shadowColor = '#ff4500';
-      ctx.shadowBlur = 12;
+      const pikX = paddle.x + paddle.w/2 + 12; // a la derecha del misil
+      ctx.shadowColor='#ff8800'; ctx.shadowBlur=14;
+      ctx.fillStyle='#ff8800';
       ctx.beginPath();
-      const tipX = fx + lean * fw * 0.5;
-      const tipY = paddle.y - 9 - fh;
-      const base = paddle.y - 9;
-      ctx.moveTo(fx - fw/2, base);
-      ctx.bezierCurveTo(fx - fw/2, base - fh*0.3, tipX - fw*0.2, tipY + fh*0.2, tipX, tipY);
-      ctx.bezierCurveTo(tipX + fw*0.2, tipY + fh*0.2, fx + fw/2, base - fh*0.3, fx + fw/2, base);
-      ctx.quadraticCurveTo(fx, base + fw*0.3, fx - fw/2, base);
-      ctx.closePath();
-      const fgrad = ctx.createLinearGradient(fx, tipY, fx, base);
-      fgrad.addColorStop(0, '#fff');
-      fgrad.addColorStop(0.25, '#ffcc44');
-      fgrad.addColorStop(0.6, '#ff6600');
-      fgrad.addColorStop(1, '#cc1100');
-      ctx.fillStyle = fgrad;
-      ctx.fill();
-      ctx.restore();
+      ctx.moveTo(pikX, paddle.y-9);
+      ctx.lineTo(pikX-5, paddle.y);
+      ctx.lineTo(pikX+5, paddle.y);
+      ctx.closePath(); ctx.fill();
+      ctx.shadowBlur=0;
       if(this.fireQueue>0){
-        ctx.fillStyle = '#ff8800';
-        ctx.font = 'bold 11px Orbitron,monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText('×'+this.fireQueue, fx, paddle.y - 10);
+        ctx.fillStyle='#ff8800'; ctx.font='bold 11px Orbitron,monospace';
+        ctx.textAlign='center'; ctx.textBaseline='bottom';
+        ctx.fillText('×'+this.fireQueue, pikX, paddle.y-10);
       }
     }
 
     ctx.shadowBlur=0;
 
-    // ─── Bolas ──────────────────────────────────────────────────────────────
     this.balls.forEach(b=>b.draw(ctx));
-
-    // ─── Partículas genéricas ──────────────────────────────────────────────
     this.particles.forEach(p=>p.draw(ctx));
 
-    // ─── Mensaje "toca para lanzar" ──────────────────────────────────────
     if(this.balls.some(b=>b.stuck)){
       ctx.globalAlpha=0.5+0.5*Math.sin(Date.now()*0.005);
       ctx.fillStyle='#00f5ff';ctx.font='bold 11px Orbitron,monospace';
@@ -1123,13 +1074,13 @@ class Game{
     }
   }
 
-  // ─── Dibujar llama sobre un ladrillo (adaptado del HTML del fuego) ────
+  // ─── Dibujar llama sobre ladrillo (estilo del HTML del fuego) ──────────
   drawFireOnBrick(ctx, br){
     const cx = br.x + br.w/2;
     const cy = br.y + br.h/2;
-    const w = br.w * 0.8;
-    const h = br.h * 2.0;
-    const lean = 0.3 * Math.sin(performance.now() / 300 + br.fireSeed);
+    const w = br.w * 0.7;   // ancho de la llama
+    const h = br.h * 2.2;   // alto de la llama
+    const lean = 0.25 * Math.sin(performance.now() / 300 + br.fireSeed);
     ctx.save();
     ctx.shadowBlur = 12;
     ctx.shadowColor = '#ff4500';
@@ -1153,7 +1104,6 @@ class Game{
     ctx.restore();
   }
 
-  // ─── HUD ──────────────────────────────────────────────────────────────────
   updateHUD(){
     document.getElementById('score-val').textContent = this.score;
     document.getElementById('level-val').textContent = this.level;
