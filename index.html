@@ -399,7 +399,7 @@ class Ball{
 // ─── PROYECTIL DE FUEGO ──────────────────────────────────────────────────────
 const BURN_TOTAL    = 300;
 const SPREAD_EVERY  = 120;
-const FIRE_MAX_BURN = 6; // ← NUEVO: máximo de ladrillos que puede quemar el fuego
+const FIRE_MAX_BURN = 10; // ← NUEVO: máximo de ladrillos que puede quemar el fuego
 
 class FireProjectile{
   constructor(x, y){
@@ -495,17 +495,13 @@ class Game{
     this.initLevel();
   }
 
-  // Genera 2 números únicos aleatorios entre 0 y 9, o uno o dos fuegos al principio del nivel
-  
+  // Genera 2 números únicos aleatorios entre 0 y 9
   _genFireTargets(){
-  const count = Math.random() < 0.5 ? 1 : 2;
-  const a = Math.floor(Math.random()*10);
-  if(count === 1) return new Set([a]);
-  let b;
-  do { b = Math.floor(Math.random()*10); } while(b===a);
-  return new Set([a, b]);
+    const a = Math.floor(Math.random()*10);
+    let b;
+    do { b = Math.floor(Math.random()*10); } while(b===a);
+    return new Set([a, b]);
   }
-
 
   onResize(){
     this.W=canvas.width; this.H=canvas.height;
@@ -1008,7 +1004,7 @@ class Game{
     this.particles.forEach(p=>p.update());
     this.particles=this.particles.filter(p=>p.life>0);
 
-    if(this.bricks.every(b=>!b.alive)){this.state='won';}
+    if(this.bricks.every(b=>!b.alive && !b.burning)){this.state='won';}
   }
 
   draw(){
@@ -1337,4 +1333,5 @@ resize();
 </script>
 </body>
 </html>
+
 
