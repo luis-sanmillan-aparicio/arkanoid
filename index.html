@@ -399,6 +399,7 @@ class Ball{
 // ─── PROYECTIL DE FUEGO ──────────────────────────────────────────────────────
 const BURN_TOTAL    = 300;
 const SPREAD_EVERY  = 120;
+const FIRE_MAX_BURN = 10; // ← NUEVO: máximo de ladrillos que puede quemar el fuego
 
 class FireProjectile{
   constructor(x, y){
@@ -487,9 +488,10 @@ class Game{
     // Fuego
     this.fireQueue=0;
     this.fireObj=null;
-    // ── NUEVO: contador de ladrillos destruidos y targets de fuego ──
+    // ── contador de ladrillos destruidos y targets de fuego ──
     this.bricksDestroyed=0;
     this.fireTargets=this._genFireTargets();
+    this.fireBurnCount=0; // ← NUEVO: cuántos ladrillos ha quemado el fuego activo
     this.initLevel();
   }
 
@@ -533,6 +535,7 @@ class Game{
     // Resetear contador y nuevos targets para este nivel
     this.bricksDestroyed=0;
     this.fireTargets=this._genFireTargets();
+    this.fireBurnCount=0; // ← NUEVO: resetear al iniciar nivel
     this.initPaddle();
     this.placeBricks();
     const speed = 4+this.level*0.4;
@@ -566,7 +569,6 @@ class Game{
           hp:1, maxHp:1,
           color:BRICK_COLORS[ci],
           alive:true,
-          // SIN hasFire — ya no se usa esa lógica
           burning:false,
           burnTimer:0,
           spreadTimer:0,
@@ -576,7 +578,7 @@ class Game{
     }
   }
 
-  // ── NUEVO: llamar cuando un ladrillo muere para ver si toca soltar fuego ──
+  // ── llamar cuando un ladrillo muere para ver si toca soltar fuego ──
   _onBrickDestroyed(br){
     const idx = this.bricksDestroyed; // índice 0-based ANTES de incrementar
     this.bricksDestroyed++;
@@ -588,12 +590,17 @@ class Game{
 
   igniteBrick(br){
     if(!br.alive || br.burning) return;
+    // ← NUEVO: bloquear si ya se quemaron 10 ladrillos con el fuego activo
+    if(this.fireBurnCount >= FIRE_MAX_BURN) return;
+    this.fireBurnCount++;
     br.burning     = true;
     br.burnTimer   = BURN_TOTAL;
     br.spreadTimer = SPREAD_EVERY;
   }
 
   spreadFireFrom(srcBr){
+    // ← NUEVO: no propagar si ya se alcanzó el límite
+    if(this.fireBurnCount >= FIRE_MAX_BURN) return;
     const gap = 6;
     this.bricks.forEach(br=>{
       if(!br.alive || br.burning) return;
@@ -640,6 +647,8 @@ class Game{
         };
       } else if(this.fireQueue>0 && !this.fireObj){
         this.fireQueue--;
+        // ← NUEVO: resetear contador de quemados al lanzar nueva bola de fuego
+        this.fireBurnCount=0;
         this.fireObj = new FireProjectile(
           this.paddle.x + this.paddle.w/2,
           this.paddle.y - 10
@@ -1324,3 +1333,4 @@ resize();
 </script>
 </body>
 </html>
+
