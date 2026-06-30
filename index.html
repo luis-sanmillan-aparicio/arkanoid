@@ -257,6 +257,34 @@ function drawFlameShape(ctx, cx, cy, w, h, lean) {
   ctx.closePath();
 }
 
+// Suma de varias ondas con distinta frecuencia: movimiento mucho menos mecánico
+function turbulence(now, speed, phase){
+  return 0.55*Math.sin(now*speed + phase)
+       + 0.30*Math.sin(now*speed*2.3 + phase*1.7)
+       + 0.15*Math.sin(now*speed*4.7 + phase*0.4);
+}
+
+// 20 anclajes de llama en posiciones 2D aleatorias dentro del ladrillo,
+// cada uno con su propia velocidad/fase para que no se muevan sincronizados
+function generateFlameAnchors(){
+  const anchors = [];
+  for(let i=0;i<20;i++){
+    anchors.push({
+      xFrac:       0.04 + Math.random()*0.92,
+      yFrac:       0.08 + Math.random()*0.84,
+      isLarge:     Math.random() < 0.4,
+      sizeJitter:  0.65 + Math.random()*0.7,
+      phase:       Math.random()*Math.PI*2,
+      speed:       0.016 + Math.random()*0.026,
+      wobblePhase: Math.random()*Math.PI*2,
+      wobbleSpeed: 0.018 + Math.random()*0.03,
+      leanPhase:   Math.random()*Math.PI*2,
+      leanSpeed:   0.014 + Math.random()*0.024,
+    });
+  }
+  return anchors;
+}
+
 function drawBrickFire(ctx, br, now) {
   const burnFrac = 1 - (br.burnTimer / BURN_TOTAL);
   const flameFactor = burnFrac > 0.85 ? (1 - (burnFrac - 0.85) / 0.15) : 1.0;
@@ -276,30 +304,30 @@ function drawBrickFire(ctx, br, now) {
     ctx.fill();
   }
 
-  const NUM_FLAMES = 12;
-  for(let i = 0; i < NUM_FLAMES; i++){
-    const seed = br.burnSeed + i * 9.17;
-    const fx = br.x + (br.w * 0.05) + (br.w * 0.9) * ((Math.sin(seed)*0.5+0.5));
-    const isLarge = (i % 2 === 0);
-    const baseH = isLarge ? br.w * 0.85 : br.w * 0.45;
-    const baseW = isLarge ? br.w * 0.18 : br.w * 0.10;
-    const h = (baseH + Math.sin(now * 0.009 + seed) * baseH * 0.28) * flameFactor;
-    const w = (baseW + Math.sin(now * 0.007 + seed + 2) * baseW * 0.3) * flameFactor;
-    const lean = Math.sin(now * 0.006 + seed + 1) * 0.45;
+  if(!br.flameAnchors) br.flameAnchors = generateFlameAnchors();
+
+  br.flameAnchors.forEach(a=>{
+    const fx = br.x + br.w * a.xFrac;
+    const fy = br.y + br.h * a.yFrac;
+    const baseH = (a.isLarge ? br.w * 0.85 : br.w * 0.45) * a.sizeJitter * 0.7;
+    const baseW = (a.isLarge ? br.w * 0.18 : br.w * 0.10) * a.sizeJitter * 0.7;
+    const h = Math.max(0, baseH * flameFactor * (1 + turbulence(now, a.speed, a.phase) * 0.34));
+    const w = Math.max(0, baseW * flameFactor * (1 + turbulence(now, a.wobbleSpeed, a.wobblePhase) * 0.4));
+    const lean = turbulence(now, a.leanSpeed, a.leanPhase) * 0.6;
 
     ctx.save();
-    drawFlameShape(ctx, fx, baseY, w, h, lean);
-    const grad = ctx.createLinearGradient(fx, baseY - h, fx, baseY);
-    const a = (isLarge ? 0.95 : 0.80) * flameFactor;
-    grad.addColorStop(0,    `rgba(255,255,210,${a})`);
-    grad.addColorStop(0.2,  `rgba(255,240,60,${a})`);
-    grad.addColorStop(0.5,  `rgba(255,120,10,${a*0.95})`);
-    grad.addColorStop(0.78, `rgba(210,30,5,${a*0.7})`);
+    drawFlameShape(ctx, fx, fy, w, h, lean);
+    const grad = ctx.createLinearGradient(fx, fy - h, fx, fy);
+    const al = (a.isLarge ? 0.95 : 0.78) * flameFactor;
+    grad.addColorStop(0,    `rgba(255,255,210,${al})`);
+    grad.addColorStop(0.2,  `rgba(255,240,60,${al})`);
+    grad.addColorStop(0.5,  `rgba(255,120,10,${al*0.95})`);
+    grad.addColorStop(0.78, `rgba(210,30,5,${al*0.7})`);
     grad.addColorStop(1,    `rgba(100,8,0,0)`);
     ctx.fillStyle = grad;
     ctx.fill();
     ctx.restore();
-  }
+  });
 
   for(let i = 0; i < 8; i++){
     const seed = br.burnSeed + i * 17.3 + 200;
@@ -605,6 +633,7 @@ class Game{
     br.burnTimer   = BURN_TOTAL;
     br.spreadTimer = SPREAD_EVERY;
     br.fireId      = fireId;
+    br.flameAnchors = generateFlameAnchors();
   }
 
   spreadFireFrom(srcBr){
