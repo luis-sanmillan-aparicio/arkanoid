@@ -402,7 +402,7 @@ class Ball{
 // ─── PROYECTIL DE FUEGO ──────────────────────────────────────────────────────
 const BURN_TOTAL    = 300;
 const SPREAD_EVERY  = 120;
-const FIRE_MAX_BURN = 10; // ← NUEVO: máximo de ladrillos que puede quemar el fuego
+const FIRE_MAX_BURN = 6; // máximo de ladrillos que puede quemar cada fuego (contado por separado)
 
 class FireProjectile{
   constructor(x, y){
@@ -494,7 +494,8 @@ class Game{
     // ── contador de ladrillos destruidos y targets de fuego ──
     this.bricksDestroyed=0;
     this.fireTargets=this._genFireTargets();
-    this.fireBurnCount=0; // ← NUEVO: cuántos ladrillos ha quemado el fuego activo
+    this.fireBurnCounts=new Map(); // fireId -> nº de ladrillos quemados por ese fuego
+    this.nextFireId=1;
     this.initLevel();
   }
 
@@ -540,7 +541,8 @@ class Game{
     // Resetear contador y nuevos targets para este nivel
     this.bricksDestroyed=0;
     this.fireTargets=this._genFireTargets();
-    this.fireBurnCount=0; // ← NUEVO: resetear al iniciar nivel
+    this.fireBurnCounts=new Map();
+    this.nextFireId=1;
     this.initPaddle();
     this.placeBricks();
     const speed = 4+this.level*0.4;
@@ -578,6 +580,7 @@ class Game{
           burnTimer:0,
           spreadTimer:0,
           burnSeed:Math.random()*1000,
+          fireId:null,
         });
       }
     }
@@ -593,19 +596,21 @@ class Game{
     }
   }
 
-  igniteBrick(br){
+  igniteBrick(br, fireId){
     if(!br.alive || br.burning) return;
-    // ← NUEVO: bloquear si ya se quemaron 10 ladrillos con el fuego activo
-    if(this.fireBurnCount >= FIRE_MAX_BURN) return;
-    this.fireBurnCount++;
+    const count = this.fireBurnCounts.get(fireId) || 0;
+    if(count >= FIRE_MAX_BURN) return; // este fuego concreto ya llegó a su tope
+    this.fireBurnCounts.set(fireId, count+1);
     br.burning     = true;
     br.burnTimer   = BURN_TOTAL;
     br.spreadTimer = SPREAD_EVERY;
+    br.fireId      = fireId;
   }
 
   spreadFireFrom(srcBr){
-    // ← NUEVO: no propagar si ya se alcanzó el límite
-    if(this.fireBurnCount >= FIRE_MAX_BURN) return;
+    const fireId = srcBr.fireId;
+    const count = this.fireBurnCounts.get(fireId) || 0;
+    if(count >= FIRE_MAX_BURN) return; // este fuego concreto ya llegó a su tope
     const gap = 6;
     this.bricks.forEach(br=>{
       if(!br.alive || br.burning) return;
@@ -617,7 +622,7 @@ class Game{
                        br.y + br.h >= srcBr.y - gap &&
                        srcBr.x < br.x + br.w &&
                        srcBr.x + srcBr.w > br.x;
-      if(adjH || aboveRow) this.igniteBrick(br);
+      if(adjH || aboveRow) this.igniteBrick(br, fireId);
     });
   }
 
@@ -652,8 +657,6 @@ class Game{
         };
       } else if(this.fireQueue>0 && !this.fireObj){
         this.fireQueue--;
-        // ← NUEVO: resetear contador de quemados al lanzar nueva bola de fuego
-        this.fireBurnCount=0;
         this.fireObj = new FireProjectile(
           this.paddle.x + this.paddle.w/2,
           this.paddle.y - 10
@@ -878,7 +881,8 @@ class Game{
           if(!br.alive) continue;
           if(fp.x+fp.r>br.x && fp.x-fp.r<br.x+br.w &&
              fp.y-fp.r<br.y+br.h && fp.y+fp.r>br.y){
-            this.igniteBrick(br);
+            const fireId = this.nextFireId++;
+            this.igniteBrick(br, fireId);
             this.spawnParticles(br.x+br.w/2, br.y+br.h/2, '#ff6600', 10);
             fp.alive = false;
             break;
